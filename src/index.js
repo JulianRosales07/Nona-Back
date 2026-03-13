@@ -14,7 +14,12 @@ const { startNotificationScheduler } = require('./services/scheduler');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false
+}));
 app.use(express.json({ limit: '10mb' })); // Aumentar límite para imágenes base64
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
