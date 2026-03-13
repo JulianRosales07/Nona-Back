@@ -6,35 +6,31 @@ const register = async (req, res) => {
   try {
     const { email, password, role, name, birthDate, cedula, phone } = req.body;
 
-    // Validar campos requeridos
     if (!email || !password || !role || !name) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Todos los campos son requeridos',
         received: { email: !!email, password: !!password, role: !!role, name: !!name }
       });
     }
 
-    // Validar teléfono (opcional pero recomendado)
     if (phone && !/^\+?[\d\s\-()]+$/.test(phone)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'El formato del teléfono no es válido'
       });
     }
 
-    // Validar fecha de nacimiento y cédula para adulto mayor
     if (role === 'adulto_mayor' && !birthDate) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'La fecha de nacimiento es requerida para adultos mayores'
       });
     }
 
     if (role === 'adulto_mayor' && !cedula) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'La cédula es requerida para adultos mayores'
       });
     }
 
-    // Verificar si el usuario ya existe por email
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('*')
@@ -50,7 +46,6 @@ const register = async (req, res) => {
       return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
     }
 
-    // Verificar si la cédula ya existe (solo para adulto mayor)
     if (role === 'adulto_mayor' && cedula) {
       const { data: existingCedula, error: cedulaError } = await supabase
         .from('users')
@@ -69,8 +64,7 @@ const register = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Preparar datos para insertar
+
     const userData = {
       email,
       password: hashedPassword,
@@ -78,18 +72,14 @@ const register = async (req, res) => {
       name
     };
 
-    // Agregar fecha de nacimiento solo si se proporciona
     if (birthDate) {
       userData.birth_date = birthDate;
       console.log('Guardando fecha de nacimiento:', birthDate);
     }
-
-    // Agregar cédula solo si se proporciona
     if (cedula) {
       userData.cedula = cedula;
     }
 
-    // Agregar teléfono solo si se proporciona
     if (phone) {
       userData.phone = phone;
     }
@@ -144,14 +134,14 @@ const login = async (req, res) => {
     );
 
     res.json({
-      user: { 
-        id: user.id, 
-        email: user.email, 
-        role: user.role, 
-        name: user.name, 
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
         birth_date: user.birth_date,
         cedula: user.cedula,
-        profile_image_url: user.profile_image_url 
+        profile_image_url: user.profile_image_url
       },
       token
     });
