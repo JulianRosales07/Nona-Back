@@ -115,7 +115,7 @@ async function sendMedicineReminder(patientId, medicineName, medicineTime) {
     };
 
     const results = await sendPushNotificationToMultipleUsers(userIds, title, body, data);
-    
+
     console.log(`📬 Recordatorio enviado para ${medicineName}:`, results.length, 'usuarios');
     return results;
 
@@ -151,39 +151,33 @@ async function checkAndSendMedicineReminders() {
     if (error) throw error;
 
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
 
-    console.log(`⏰ Hora actual: ${currentTime}`);
+    console.log(`⏰ Hora actual: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
 
     let sentCount = 0;
 
     for (const medicine of medicines) {
       // Parsear el horario del medicamento (puede estar en varios formatos)
       const medicineTime = parseMedicineTime(medicine.time);
-      
+
       if (!medicineTime) continue;
 
       // Calcular la hora de notificación (10 minutos antes)
       const [medHour, medMinute] = medicineTime.split(':').map(Number);
-      let notificationHour = medHour;
-      let notificationMinute = medMinute - 10;
+      const medicineTotalMinutes = medHour * 60 + medMinute;
+      let notificationTotalMinutes = medicineTotalMinutes - 10;
+      if (notificationTotalMinutes < 0) notificationTotalMinutes += 1440; // Wrap al día anterior
 
-      // Ajustar si los minutos son negativos
-      if (notificationMinute < 0) {
-        notificationMinute += 60;
-        notificationHour -= 1;
-        if (notificationHour < 0) {
-          notificationHour = 23; // Día anterior
-        }
-      }
+      // Comparar con un margen de ±1 minuto para no perder notificaciones
+      const diff = Math.abs(currentTotalMinutes - notificationTotalMinutes);
+      const isTimeToNotify = diff <= 1 || diff >= 1439; // También cubre el wrap de medianoche
 
-      const notificationTime = `${notificationHour.toString().padStart(2, '0')}:${notificationMinute.toString().padStart(2, '0')}`;
+      const notificationHour = Math.floor(notificationTotalMinutes / 60);
+      const notificationMinute = notificationTotalMinutes % 60;
+      console.log(`📋 ${medicine.name}: Hora programada ${medicineTime}, notificación ${notificationHour.toString().padStart(2, '0')}:${notificationMinute.toString().padStart(2, '0')}`);
 
-      console.log(`📋 ${medicine.name}: Hora programada ${medicineTime}, notificación ${notificationTime}`);
-
-      if (notificationTime === currentTime) {
+      if (isTimeToNotify) {
         // Verificar si ya se tomó hoy
         const today = new Date().toISOString().split('T')[0];
         const { data: logs } = await supabase
@@ -230,7 +224,7 @@ function parseMedicineTime(timeString) {
   if (timeMatch) {
     const hour = parseInt(timeMatch[1]);
     const minute = parseInt(timeMatch[2]);
-    
+
     // Manejar formato 12 horas (AM/PM)
     if (timeString.toLowerCase().includes('pm') && hour < 12) {
       return `${(hour + 12).toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
@@ -238,16 +232,95 @@ function parseMedicineTime(timeString) {
     if (timeString.toLowerCase().includes('am') && hour === 12) {
       return `00:${minute.toString().padStart(2, '0')}`;
     }
-    
+
     return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
   }
 
   return null;
 }
 
+/**
+ * Verificar y enviar recordatorios de citas programadas
+ * Envía notificaciones 30 minutos antes de la hora de la cita
+ */
+async function checkAndSendAppointmentReminders() {
+  try {
+    console.log('🔍 Verificando citas programadas...');
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // Obtener citas de hoy que no estén canceladas
+    const { data: appointments, error } = await supabase
+      .from('appointments')
+      .select('id, title, date, time, patient_id, doctor_name')
+      .eq('date', today)
+      .neq('status', 'cancelled');
+
+    if (error) throw error;
+    if (!appointments || appointments.length === 0) {
+      console.log('📅 No hay citas para hoy');
+      return { success: true, sent: 0 };
+    }
+
+    let sentCount = 0;
+
+    for (const appointment of appointments) {
+      if (!appointment.time) continue;
+
+      const timeMatch = appointment.time.match(/(\d{1,2}):(\d{2})/);
+      if (!timeMatch) continue;
+
+      const appointmentTotalMinutes = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+      // Notificar 30 minutos antes
+      let notifyAt = appointmentTotalMinutes - 30;
+      if (notifyAt < 0) notifyAt += 1440;
+
+      const diff = Math.abs(currentTotalMinutes - notifyAt);
+      const isTimeToNotify = diff <= 1 || diff >= 1439;
+
+      if (isTimeToNotify) {
+        const title = '📅 Recordatorio de Cita';
+        const doctorInfo = appointment.doctor_name ? ` con ${appointment.doctor_name}` : '';
+        const body = `En 30 minutos: ${appointment.title || 'Cita médica'}${doctorInfo} (${appointment.time})`;
+
+        const userIds = [appointment.patient_id];
+
+        // También notificar a cuidadores/familiares
+        const { data: relationships } = await supabase
+          .from('user_relationships')
+          .select('caregiver_id')
+          .eq('elderly_id', appointment.patient_id)
+          .eq('status', 'active');
+
+        if (relationships) {
+          relationships.forEach(rel => userIds.push(rel.caregiver_id));
+        }
+
+        await sendPushNotificationToMultipleUsers(userIds, title, body, {
+          type: 'appointment_reminder',
+          appointmentId: appointment.id,
+        });
+
+        sentCount++;
+        console.log(`✅ Recordatorio de cita enviado: ${appointment.title}`);
+      }
+    }
+
+    console.log(`📅 Total recordatorios de citas enviados: ${sentCount}`);
+    return { success: true, sent: sentCount };
+
+  } catch (error) {
+    console.error('Error en checkAndSendAppointmentReminders:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendPushNotification,
   sendPushNotificationToMultipleUsers,
   sendMedicineReminder,
-  checkAndSendMedicineReminders
+  checkAndSendMedicineReminders,
+  checkAndSendAppointmentReminders
 };

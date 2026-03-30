@@ -14,12 +14,14 @@ const { startNotificationScheduler } = require('./services/scheduler');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configuración CORS más permisiva para producción
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: false
 }));
+
 app.use(express.json({ limit: '10mb' })); // Aumentar límite para imágenes base64
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -33,6 +35,14 @@ app.use('/api/push-tokens', pushTokenRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
 });
 
 app.listen(PORT, '0.0.0.0', () => {

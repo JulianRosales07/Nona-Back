@@ -1,9 +1,9 @@
 const cron = require('node-cron');
-const { checkAndSendMedicineReminders } = require('./notificationService');
+const { checkAndSendMedicineReminders, checkAndSendAppointmentReminders } = require('./notificationService');
 
 /**
  * Iniciar el scheduler de notificaciones
- * Se ejecuta cada minuto para verificar si hay medicamentos programados
+ * Se ejecuta cada minuto para verificar si hay medicamentos o citas programadas
  */
 function startNotificationScheduler() {
   console.log('🚀 Iniciando scheduler de notificaciones...');
@@ -11,13 +11,16 @@ function startNotificationScheduler() {
   // Ejecutar cada minuto
   cron.schedule('* * * * *', async () => {
     try {
-      await checkAndSendMedicineReminders();
+      await Promise.all([
+        checkAndSendMedicineReminders(),
+        checkAndSendAppointmentReminders()
+      ]);
     } catch (error) {
       console.error('Error en scheduler:', error);
     }
   });
 
-  console.log('✅ Scheduler iniciado - verificando cada minuto');
+  console.log('✅ Scheduler iniciado - verificando medicamentos y citas cada minuto');
 }
 
 module.exports = {

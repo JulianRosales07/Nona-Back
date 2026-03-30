@@ -119,6 +119,69 @@ describe('authController › register', () => {
     );
   });
 
+  test('400 si la cédula ya está registrada (Adulto Mayor)', async () => {
+    // Mock: el correo no existe pero la cédula sí
+    const noUserChain = mockSupabaseChain({ data: null, error: null });
+    const existingCedulaChain = mockSupabaseChain({ data: { id: 10, cedula: '123456789' }, error: null });
+
+    supabase.from
+      .mockReturnValueOnce(noUserChain)      // check email
+      .mockReturnValueOnce(existingCedulaChain); // check cedula
+
+    const { req, res } = mockReqRes({
+      email: 'nuevo@test.com',
+      password: '123456',
+      role: 'adulto_mayor',
+      name: 'Test',
+      birthDate: '1950-01-01',
+      cedula: '123456789'
+    });
+
+    await register(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'La cédula ya está registrada' })
+    );
+  });
+
+  test('201 registro exitoso de Adulto Mayor', async () => {
+    // 1. Check email -> null
+    const noUserChain = mockSupabaseChain({ data: null, error: null });
+    // 2. Check cedula -> null
+    const noCedulaChain = mockSupabaseChain({ data: null, error: null });
+    // 3. Insert -> data
+    const insertChain = {
+      ...mockSupabaseChain(null),
+      single: jest.fn().mockResolvedValue({
+        data: { id: 100, email: 'abuela@test.com', role: 'adulto_mayor', name: 'Abuela' },
+        error: null,
+      }),
+    };
+
+    supabase.from
+      .mockReturnValueOnce(noUserChain)  // check email
+      .mockReturnValueOnce(noCedulaChain) // check cedula
+      .mockReturnValueOnce(insertChain);  // insert
+
+    bcrypt.hash.mockResolvedValue('hashed_password');
+    jwt.sign.mockReturnValue('fake_token');
+
+    const { req, res } = mockReqRes({
+      email: 'abuela@test.com',
+      password: 'password123',
+      role: 'adulto_mayor',
+      name: 'Abuela',
+      birthDate: '1950-01-01',
+      cedula: '987654321'
+    });
+
+    await register(req, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ token: 'fake_token', user: expect.objectContaining({ role: 'adulto_mayor' }) })
+    );
+  });
+
   test('201 registro exitoso de cuidador', async () => {
     // Primera llamada a maybeSingle: usuario no existe
     const noUserChain = mockSupabaseChain({ data: null, error: null });
