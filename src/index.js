@@ -12,6 +12,7 @@ const pushTokenRoutes = require('./routes/pushTokenRoutes');
 const assistantRoutes = require('./routes/assistant');
 const placesRoutes = require('./routes/places');
 const transcribeRoutes = require('./routes/transcribe');
+const ttsRoutes = require('./routes/tts');
 const { startNotificationScheduler } = require('./services/scheduler');
 
 const app = express();
