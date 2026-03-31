@@ -39,6 +39,7 @@ app.use('/api/push-tokens', pushTokenRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/transcribe', transcribeRoutes);
+app.use('/api/tts', ttsRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
