@@ -74,52 +74,59 @@ const tools = [
 ];
 
 // ── Ejecutar las funciones ──
-const executeTool = async (toolName, args, patientId) => {
-    switch (toolName) {
-        case 'create_medicine': {
-            const { data, error } = await supabase.from('medicines').insert({
-                patient_id: patientId,
-                name: args.name,
-                dosage: args.dosage || null,
-                frequency: args.frequency || null,
-                time: args.time || null,
-                notes: args.notes || null,
-            }).select().single();
-            if (error) return { success: false, error: error.message };
-            return { success: true, message: `Medicamento "${args.name}" agregado correctamente.`, data };
+const executeTool = async (toolName, args, patientId, userId) => {
+    console.log(`🔧 Ejecutando tool: ${toolName}`, JSON.stringify(args));
+    try {
+        switch (toolName) {
+            case 'create_medicine': {
+                const { data, error } = await supabase.from('medicines').insert({
+                    patient_id: patientId,
+                    name: args.name,
+                    dosage: args.dosage || null,
+                    frequency: args.frequency || null,
+                    time: args.time || null,
+                    notes: args.notes || null,
+                }).select().single();
+                if (error) { console.error('❌ Error create_medicine:', error); return { success: false, error: error.message }; }
+                return { success: true, message: `Medicamento "${args.name}" agregado correctamente.` };
+            }
+            case 'delete_medicine': {
+                const { data: meds } = await supabase.from('medicines').select('*').eq('patient_id', patientId).ilike('name', `%${args.medicine_name}%`);
+                if (!meds || meds.length === 0) return { success: false, error: `No se encontró el medicamento "${args.medicine_name}".` };
+                const { error } = await supabase.from('medicines').delete().eq('id', meds[0].id);
+                if (error) { console.error('❌ Error delete_medicine:', error); return { success: false, error: error.message }; }
+                return { success: true, message: `Medicamento "${meds[0].name}" eliminado correctamente.` };
+            }
+            case 'create_appointment': {
+                const { data, error } = await supabase.from('appointments').insert({
+                    patient_id: patientId,
+                    created_by: userId || patientId,
+                    doctor_name: args.doctor_name,
+                    specialty: args.specialty || 'General',
+                    appointment_date: args.appointment_date,
+                    appointment_time: args.appointment_time || '09:00 AM',
+                    location: args.location || 'Por definir',
+                    notes: args.notes || null,
+                    status: 'pending',
+                }).select().single();
+                if (error) { console.error('❌ Error create_appointment:', error); return { success: false, error: error.message }; }
+                return { success: true, message: `Cita con Dr. ${args.doctor_name} agendada para el ${args.appointment_date} a las ${args.appointment_time || '09:00 AM'}.` };
+            }
+            case 'cancel_appointment': {
+                let query = supabase.from('appointments').select('*').eq('patient_id', patientId).ilike('doctor_name', `%${args.doctor_name}%`).neq('status', 'cancelled');
+                if (args.appointment_date) query = query.eq('appointment_date', args.appointment_date);
+                const { data: apts } = await query;
+                if (!apts || apts.length === 0) return { success: false, error: `No se encontró una cita con "${args.doctor_name}".` };
+                const { error } = await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', apts[0].id);
+                if (error) { console.error('❌ Error cancel_appointment:', error); return { success: false, error: error.message }; }
+                return { success: true, message: `Cita con ${apts[0].doctor_name} cancelada.` };
+            }
+            default:
+                return { success: false, error: 'Función no reconocida.' };
         }
-        case 'delete_medicine': {
-            const { data: meds } = await supabase.from('medicines').select('*').eq('patient_id', patientId).ilike('name', `%${args.medicine_name}%`);
-            if (!meds || meds.length === 0) return { success: false, error: `No se encontró el medicamento "${args.medicine_name}".` };
-            const { error } = await supabase.from('medicines').delete().eq('id', meds[0].id);
-            if (error) return { success: false, error: error.message };
-            return { success: true, message: `Medicamento "${meds[0].name}" eliminado correctamente.` };
-        }
-        case 'create_appointment': {
-            const { data, error } = await supabase.from('appointments').insert({
-                patient_id: patientId,
-                doctor_name: args.doctor_name,
-                specialty: args.specialty,
-                appointment_date: args.appointment_date,
-                appointment_time: args.appointment_time || null,
-                location: args.location || null,
-                notes: args.notes || null,
-                status: 'pending',
-            }).select().single();
-            if (error) return { success: false, error: error.message };
-            return { success: true, message: `Cita con ${args.doctor_name} agendada para el ${args.appointment_date}.`, data };
-        }
-        case 'cancel_appointment': {
-            let query = supabase.from('appointments').select('*').eq('patient_id', patientId).ilike('doctor_name', `%${args.doctor_name}%`).neq('status', 'cancelled');
-            if (args.appointment_date) query = query.eq('appointment_date', args.appointment_date);
-            const { data: apts } = await query;
-            if (!apts || apts.length === 0) return { success: false, error: `No se encontró una cita con "${args.doctor_name}".` };
-            const { error } = await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', apts[0].id);
-            if (error) return { success: false, error: error.message };
-            return { success: true, message: `Cita con ${apts[0].doctor_name} cancelada.` };
-        }
-        default:
-            return { success: false, error: 'Función no reconocida.' };
+    } catch (e) {
+        console.error(`❌ Error ejecutando ${toolName}:`, e);
+        return { success: false, error: e.message };
     }
 };
 
@@ -201,6 +208,9 @@ Reglas:
 - Usa los datos reales, nunca inventes
 - Si el usuario quiere agregar medicamento o cita, USA las funciones disponibles
 - Si quiere eliminar o cancelar, USA las funciones disponibles
+- Para fechas, SIEMPRE usa formato YYYY-MM-DD (ej: 2026-04-05). El año actual es ${new Date().getFullYear()}
+- Si el usuario dice "el 5 de abril", convierte a ${new Date().getFullYear()}-04-05
+- Si no especifica año, usa ${new Date().getFullYear()}
 - Confirma siempre al usuario qué acción realizaste
 - Sé breve e informativo`;
 };
@@ -210,6 +220,9 @@ const chat = async (req, res) => {
     try {
         const { message, patientId, role, userName, conversationHistory } = req.body;
         if (!message || !patientId) return res.status(400).json({ error: 'Se requiere message y patientId' });
+
+        // userId es el usuario autenticado (del token JWT)
+        const userId = req.user?.id || patientId;
 
         const ctx = await loadPatientContext(patientId);
         const systemPrompt = buildSystemPrompt(ctx, role || 'adultoMayor', userName || 'Usuario');
@@ -240,7 +253,7 @@ const chat = async (req, res) => {
             for (const toolCall of choice.message.tool_calls) {
                 const args = JSON.parse(toolCall.function.arguments);
                 console.log(`🔧 Ejecutando: ${toolCall.function.name}`, args);
-                const result = await executeTool(toolCall.function.name, args, patientId);
+                const result = await executeTool(toolCall.function.name, args, patientId, userId);
                 toolResults.push({ tool_call_id: toolCall.id, role: 'tool', content: JSON.stringify(result) });
             }
 
