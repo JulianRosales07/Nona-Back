@@ -9,6 +9,7 @@ const appointmentRoutes = require('./routes/appointments');
 const medicineRoutes = require('./routes/medicineRoutes');
 const medicineLogRoutes = require('./routes/medicineLogRoutes');
 const pushTokenRoutes = require('./routes/pushTokenRoutes');
+const assistantRoutes = require('./routes/assistant');
 const { startNotificationScheduler } = require('./services/scheduler');
 
 const app = express();
@@ -32,6 +33,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/medicines', medicineRoutes);
 app.use('/api/medicine-logs', medicineLogRoutes);
 app.use('/api/push-tokens', pushTokenRoutes);
+app.use('/api/assistant', assistantRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
