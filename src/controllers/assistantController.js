@@ -5,7 +5,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // Cargar contexto del paciente desde la BD
 const loadPatientContext = async (patientId) => {
-    const ctx = { medications: [], appointments: [], stats: { total: 0, taken: 0, streak: 0 }, patient: null };
+    const ctx = { medications: [], appointments: [], stats: { total: 0, taken: 0, streak: 0 }, patient: null, relationships: [] };
     try {
         // Datos del paciente
         const { data: patient } = await supabase.from('users').select('*').eq('id', patientId).single();
@@ -25,6 +25,17 @@ const loadPatientContext = async (patientId) => {
         // Citas
         const { data: apts } = await supabase.from('appointments').select('*').eq('patient_id', patientId).order('appointment_date', { ascending: true });
         ctx.appointments = apts || [];
+
+        // Relaciones (familiares y cuidadores vinculados)
+        const { data: rels } = await supabase.from('user_relationships').select('*').eq('elderly_id', patientId).eq('status', 'active');
+        if (rels && rels.length > 0) {
+            const caregiverIds = rels.map(r => r.caregiver_id);
+            const { data: caregivers } = await supabase.from('users').select('id, name, email, phone, role').in('id', caregiverIds);
+            ctx.relationships = (caregivers || []).map(c => {
+                const rel = rels.find(r => r.caregiver_id === c.id);
+                return { ...c, relationshipType: rel?.relationship_type || 'familiar' };
+            });
+        }
     } catch (e) {
         console.error('Error loading patient context:', e);
     }
@@ -33,8 +44,10 @@ const loadPatientContext = async (patientId) => {
 
 // Construir el system prompt según el rol
 const buildSystemPrompt = (ctx, role, userName) => {
-    const { medications, appointments, stats, patient } = ctx;
+    const { medications, appointments, stats, patient, relationships } = ctx;
     const patientName = patient?.name || 'el paciente';
+    const patientPhone = patient?.phone || 'no registrado';
+    const patientEmail = patient?.email || 'no registrado';
     const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     let medsInfo = 'No hay medicamentos registrados.';
@@ -50,9 +63,24 @@ const buildSystemPrompt = (ctx, role, userName) => {
         }).join('\n');
     }
 
+    let relsInfo = 'No hay familiares o cuidadores vinculados.';
+    if (relationships.length > 0) {
+        relsInfo = relationships.map(r => `- ${r.name} (${r.relationshipType}): teléfono: ${r.phone || 'no registrado'}, email: ${r.email || 'no registrado'}`).join('\n');
+    }
+
     const baseContext = `
 Fecha de hoy: ${today}
-Paciente: ${patientName}
+
+Datos del paciente:
+- Nombre: ${patientName}
+- Teléfono: ${patientPhone}
+- Email: ${patientEmail}
+- Fecha de nacimiento: ${patient?.birth_date || 'no registrada'}
+- Cédula: ${patient?.cedula || 'no registrada'}
+
+Familiares y cuidadores vinculados:
+${relsInfo}
+
 Medicamentos registrados (${medications.length}):
 ${medsInfo}
 
@@ -65,7 +93,7 @@ ${aptsInfo}
     if (role === 'adultoMayor') {
         return `Eres Nona AI, un asistente virtual cariñoso y paciente para adultos mayores. Hablas en español de forma clara, sencilla y con emojis amigables. Tu usuario se llama ${userName}.
 
-Tienes acceso a la siguiente información real del paciente:
+Tienes acceso a la siguiente información real:
 ${baseContext}
 
 Reglas:
@@ -74,9 +102,10 @@ Reglas:
 - Usa emojis para hacer las respuestas más amigables
 - Si preguntan por medicamentos, muestra los datos reales
 - Si preguntan por citas, muestra las citas reales
-- Si preguntan algo que no sabes, sugiere contactar a su familiar o cuidador
+- Si preguntan por teléfono o contacto de familiares, usa los datos reales de las relaciones
+- Si preguntan algo que no tienes en los datos, dilo honestamente
 - Sé breve pero informativo
-- Nunca inventes datos médicos que no tengas`;
+- Nunca inventes datos que no tengas`;
     }
 
     return `Eres Nona AI, un asistente virtual profesional para ${role === 'familiar' ? 'familiares' : 'cuidadores'} de adultos mayores. Hablas en español de forma clara y profesional. Tu usuario se llama ${userName} y cuida a ${patientName}.
@@ -90,9 +119,10 @@ Reglas:
 - Usa emojis moderadamente
 - Si preguntan por medicamentos del paciente, muestra los datos reales
 - Si preguntan por citas del paciente, muestra las citas reales
+- Si preguntan por datos de contacto, usa la información real disponible
 - Proporciona información útil para el cuidado
 - Sé breve pero informativo
-- Nunca inventes datos médicos que no tengas`;
+- Nunca inventes datos que no tengas`;
 };
 
 // Endpoint principal del chat
