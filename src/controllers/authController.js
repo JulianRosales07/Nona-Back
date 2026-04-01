@@ -155,6 +155,7 @@ const login = async (req, res) => {
         name: user.name,
         birth_date: user.birth_date,
         cedula: user.cedula,
+        phone: user.phone,
         profile_image_url: user.profile_image_url
       },
       token
