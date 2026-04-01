@@ -2,7 +2,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/database');
 const crypto = require('crypto');
-const { sendPasswordResetEmail } = require('../services/emailService');
 
 // Almacenamiento temporal de códigos de recuperación (en producción usar Redis o base de datos)
 const resetCodes = new Map();
@@ -197,32 +196,13 @@ const requestPasswordReset = async (req, res) => {
       userId: user.id
     });
 
-    // Enviar email con el código
-    try {
-      const emailResult = await sendPasswordResetEmail(email, code, user.name);
+    // Retornar el código directamente (sin enviar email)
+    console.log(`📧 Código de recuperación generado para ${email}: ${code}`);
 
-      // En desarrollo, también retornar el código
-      if (emailResult.mode === 'development' || process.env.NODE_ENV === 'development') {
-        return res.json({
-          message: 'Código enviado',
-          code // Solo en desarrollo
-        });
-      }
-
-      res.json({
-        message: 'Si el correo existe, recibirás un código de recuperación'
-      });
-    } catch (emailError) {
-      console.error('Error sending email:', emailError);
-      // Si falla el envío, al menos retornar el código en desarrollo
-      if (process.env.NODE_ENV === 'development') {
-        return res.json({
-          message: 'Error al enviar email, pero aquí está el código',
-          code
-        });
-      }
-      res.status(500).json({ error: 'Error al enviar el código' });
-    }
+    return res.json({
+      message: 'Código generado exitosamente',
+      code
+    });
   } catch (error) {
     console.error('Request password reset error:', error);
     res.status(500).json({ error: error.message });
