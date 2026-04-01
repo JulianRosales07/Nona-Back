@@ -302,44 +302,64 @@ const resetPassword = async (req, res) => {
 // Obtener perfil del usuario
 const getProfile = async (req, res) => {
   try {
-    const userId = req.user.userId; // Cambiado de req.user.id a req.user.userId
+    const userId = req.user.userId || req.user.id;
 
+    if (!userId) {
+      return res.status(401).json({ error: 'Usuario no identificado en el token' });
+    }
+
+    // Eliminado 'residence' ya que no existe en el esquema de la base de datos
     const { data, error } = await supabase
       .from('users')
-      .select('id, name, email, role, phone, cedula, residence, birth_date, profile_image_url, created_at')
+      .select('id, name, email, role, phone, cedula, birth_date, profile_image_url, created_at')
       .eq('id', userId)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error supabase getProfile:', error);
+      throw error;
+    }
 
     res.json(data);
   } catch (error) {
     console.error('Error getting profile:', error);
-    res.status(500).json({ error: 'Error al obtener el perfil' });
+    res.status(500).json({
+      error: 'Error al obtener el perfil',
+      details: error.message
+    });
   }
 };
 
 // Actualizar perfil del usuario
 const updateProfile = async (req, res) => {
   try {
-    const userId = req.user.userId; // Cambiado de req.user.id a req.user.userId
-    const { name, phone, cedula, residence, birth_date } = req.body;
+    const userId = req.user.userId || req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Usuario no identificado en el token' });
+    }
+
+    const { name, phone, cedula, birth_date } = req.body;
 
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
     if (cedula !== undefined) updateData.cedula = cedula;
-    if (residence !== undefined) updateData.residence = residence;
+    // Eliminado 'residence' ya que no existe en el esquema de la base de datos
+    // if (residence !== undefined) updateData.residence = residence;
     if (birth_date !== undefined) updateData.birth_date = birth_date;
 
     const { data, error } = await supabase
       .from('users')
       .update(updateData)
       .eq('id', userId)
-      .select()
+      .select('id, name, email, role, phone, cedula, birth_date, profile_image_url, created_at')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error supabase updateProfile:', error);
+      throw error;
+    }
 
     res.json({
       message: 'Perfil actualizado correctamente',
@@ -347,7 +367,10 @@ const updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating profile:', error);
-    res.status(500).json({ error: 'Error al actualizar el perfil' });
+    res.status(500).json({
+      error: 'Error al actualizar el perfil',
+      details: error.message
+    });
   }
 };
 
