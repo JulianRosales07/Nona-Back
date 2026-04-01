@@ -299,18 +299,10 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = {
-  register,
-  login,
-  requestPasswordReset,
-  verifyResetCode,
-  resetPassword
-};
-
 // Obtener perfil del usuario
 const getProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId; // Cambiado de req.user.id a req.user.userId
 
     const { data, error } = await supabase
       .from('users')
@@ -330,7 +322,7 @@ const getProfile = async (req, res) => {
 // Actualizar perfil del usuario
 const updateProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId; // Cambiado de req.user.id a req.user.userId
     const { name, phone, cedula, residence, birth_date } = req.body;
 
     const updateData = {};
@@ -359,5 +351,12 @@ const updateProfile = async (req, res) => {
   }
 };
 
-module.exports.getProfile = getProfile;
-module.exports.updateProfile = updateProfile;
+module.exports = {
+  register,
+  login,
+  requestPasswordReset,
+  verifyResetCode,
+  resetPassword,
+  getProfile,
+  updateProfile
+};
