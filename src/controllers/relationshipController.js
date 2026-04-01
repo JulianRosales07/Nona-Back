@@ -90,6 +90,7 @@ const getElderlyCaregiversAndFamily = async (req, res) => {
           id,
           name,
           email,
+          phone,
           profile_image_url,
           role
         )
@@ -114,6 +115,7 @@ const getElderlyCaregiversAndFamily = async (req, res) => {
       caregiver_id: rel.caregiver.id,
       caregiver_name: rel.caregiver.name,
       caregiver_email: rel.caregiver.email,
+      caregiver_phone: rel.caregiver.phone,
       caregiver_profile_image: rel.caregiver.profile_image_url,
       caregiver_role: rel.caregiver.role,
       relationship_type: rel.relationship_type,
