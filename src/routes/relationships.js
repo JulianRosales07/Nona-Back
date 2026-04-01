@@ -12,6 +12,9 @@ router.post('/link-by-cedula', relationshipController.linkByCedula);
 // Obtener mis pacientes vinculados
 router.get('/my-patients', relationshipController.getMyPatients);
 
+// Obtener mis cuidadores vinculados (para pacientes)
+router.get('/my-caregivers', relationshipController.getMyCaregivers);
+
 // Crear una nueva relación
 router.post('/', relationshipController.createRelationship);
 

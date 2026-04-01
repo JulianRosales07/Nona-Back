@@ -491,6 +491,67 @@ const getMyPatients = async (req, res) => {
   }
 };
 
+// Obtener los cuidadores vinculados al usuario actual (paciente)
+const getMyCaregivers = async (req, res) => {
+  const elderlyId = req.user.userId;
+
+  console.log('Obteniendo cuidadores para elderlyId:', elderlyId);
+
+  try {
+    const { data, error } = await supabase
+      .from('user_relationships')
+      .select(`
+        id,
+        relationship_type,
+        permissions,
+        status,
+        created_at,
+        caregiver:users!caregiver_id (
+          id,
+          name,
+          email,
+          phone,
+          profile_image_url,
+          role
+        )
+      `)
+      .eq('elderly_id', elderlyId)
+      .eq('status', 'active');
+
+    if (error) {
+      console.error('Error al obtener cuidadores:', error);
+      return res.status(500).json({
+        error: 'Error al obtener los cuidadores',
+        message: error.message
+      });
+    }
+
+    // Transformar los datos
+    const caregivers = data.map(rel => ({
+      relationship_id: rel.id,
+      caregiver_id: rel.caregiver.id,
+      caregiver_name: rel.caregiver.name,
+      caregiver_email: rel.caregiver.email,
+      caregiver_phone: rel.caregiver.phone,
+      caregiver_profile_image: rel.caregiver.profile_image_url,
+      caregiver_role: rel.caregiver.role,
+      relationship_type: rel.relationship_type,
+      permissions: rel.permissions,
+      status: rel.status,
+      created_at: rel.created_at
+    }));
+
+    console.log('Cuidadores encontrados:', caregivers.length);
+    res.json(caregivers);
+  } catch (error) {
+    console.error('Error al obtener cuidadores:', error);
+    res.status(500).json({
+      error: 'Error al obtener los cuidadores',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   createRelationship,
   getElderlyCaregiversAndFamily,
@@ -500,5 +561,6 @@ module.exports = {
   deleteRelationship,
   checkPermission,
   linkByCedula,
-  getMyPatients
+  getMyPatients,
+  getMyCaregivers
 };
