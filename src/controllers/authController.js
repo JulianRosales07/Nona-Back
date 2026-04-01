@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/database');
 const crypto = require('crypto');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 // Almacenamiento temporal de códigos de recuperación (en producción usar Redis o base de datos)
 const resetCodes = new Map();
@@ -196,15 +197,12 @@ const requestPasswordReset = async (req, res) => {
       userId: user.id
     });
 
-    // Enviar email con el código usando Supabase Auth
+    // Enviar email con el código
     try {
-      // Nota: Supabase Auth maneja el envío de emails automáticamente
-      // Para desarrollo, también logueamos el código
-      console.log(`Código de recuperación para ${email}: ${code}`);
+      const emailResult = await sendPasswordResetEmail(email, code, user.name);
 
-      // En producción, aquí enviarías el email con un servicio como SendGrid, AWS SES, etc.
-      // Por ahora, retornamos el código en desarrollo
-      if (process.env.NODE_ENV === 'development') {
+      // En desarrollo, también retornar el código
+      if (emailResult.mode === 'development' || process.env.NODE_ENV === 'development') {
         return res.json({
           message: 'Código enviado',
           code // Solo en desarrollo
@@ -216,6 +214,13 @@ const requestPasswordReset = async (req, res) => {
       });
     } catch (emailError) {
       console.error('Error sending email:', emailError);
+      // Si falla el envío, al menos retornar el código en desarrollo
+      if (process.env.NODE_ENV === 'development') {
+        return res.json({
+          message: 'Error al enviar email, pero aquí está el código',
+          code
+        });
+      }
       res.status(500).json({ error: 'Error al enviar el código' });
     }
   } catch (error) {
