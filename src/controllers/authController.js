@@ -308,10 +308,10 @@ const getProfile = async (req, res) => {
       return res.status(401).json({ error: 'Usuario no identificado en el token' });
     }
 
-    // Eliminado 'residence' ya que no existe en el esquema de la base de datos
+    // Consultar el perfil incluyendo 'residence'
     const { data, error } = await supabase
       .from('users')
-      .select('id, name, email, role, phone, cedula, birth_date, profile_image_url, created_at')
+      .select('id, name, email, role, phone, cedula, residence, birth_date, profile_image_url, created_at')
       .eq('id', userId)
       .single();
 
@@ -339,21 +339,20 @@ const updateProfile = async (req, res) => {
       return res.status(401).json({ error: 'Usuario no identificado en el token' });
     }
 
-    const { name, phone, cedula, birth_date } = req.body;
+    const { name, phone, cedula, residence, birth_date } = req.body;
 
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
     if (cedula !== undefined) updateData.cedula = cedula;
-    // Eliminado 'residence' ya que no existe en el esquema de la base de datos
-    // if (residence !== undefined) updateData.residence = residence;
+    if (residence !== undefined) updateData.residence = residence;
     if (birth_date !== undefined) updateData.birth_date = birth_date;
 
     const { data, error } = await supabase
       .from('users')
       .update(updateData)
       .eq('id', userId)
-      .select('id, name, email, role, phone, cedula, birth_date, profile_image_url, created_at')
+      .select('id, name, email, role, phone, cedula, residence, birth_date, profile_image_url, created_at')
       .single();
 
     if (error) {
