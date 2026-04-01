@@ -157,6 +157,7 @@ const getCaregiverElderlyPatients = async (req, res) => {
           name,
           email,
           cedula,
+          phone,
           profile_image_url
         )
       `)
@@ -180,6 +181,7 @@ const getCaregiverElderlyPatients = async (req, res) => {
       elderly_name: rel.elderly.name,
       elderly_email: rel.elderly.email,
       elderly_cedula: rel.elderly.cedula,
+      elderly_phone: rel.elderly.phone,
       elderly_profile_image: rel.elderly.profile_image_url,
       relationship_type: rel.relationship_type,
       permissions: rel.permissions,
