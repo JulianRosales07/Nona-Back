@@ -30,8 +30,8 @@ const createRelationship = async (req, res) => {
     // Validar que el relationship_type coincida con el rol
     const caregiverRole = caregiverData.role;
     if (relationship_type !== caregiverRole) {
-      return res.status(400).json({ 
-        error: `El tipo de relación debe ser '${caregiverRole}' para este usuario` 
+      return res.status(400).json({
+        error: `El tipo de relación debe ser '${caregiverRole}' para este usuario`
       });
     }
 
@@ -101,9 +101,9 @@ const getElderlyCaregiversAndFamily = async (req, res) => {
 
     if (error) {
       console.error('Error al obtener relaciones:', error);
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Error al obtener las relaciones',
-        message: error.message 
+        message: error.message
       });
     }
 
@@ -130,9 +130,9 @@ const getElderlyCaregiversAndFamily = async (req, res) => {
     });
   } catch (error) {
     console.error('Error al obtener relaciones:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Error al obtener las relaciones',
-      message: error.message 
+      message: error.message
     });
   }
 };
@@ -166,9 +166,9 @@ const getCaregiverElderlyPatients = async (req, res) => {
 
     if (error) {
       console.error('Error al obtener pacientes:', error);
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Error al obtener los pacientes',
-        message: error.message 
+        message: error.message
       });
     }
 
@@ -195,9 +195,9 @@ const getCaregiverElderlyPatients = async (req, res) => {
     });
   } catch (error) {
     console.error('Error al obtener pacientes:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Error al obtener los pacientes',
-      message: error.message 
+      message: error.message
     });
   }
 };
@@ -235,8 +235,8 @@ const updateRelationshipStatus = async (req, res) => {
   const { status } = req.body;
 
   if (!['pending', 'active', 'inactive'].includes(status)) {
-    return res.status(400).json({ 
-      error: 'Estado inválido. Debe ser: pending, active o inactive' 
+    return res.status(400).json({
+      error: 'Estado inválido. Debe ser: pending, active o inactive'
     });
   }
 
@@ -308,9 +308,9 @@ const checkPermission = async (req, res) => {
     const permissions = data.permissions;
     const hasPermission = permissions[permission_type] === true;
 
-    res.json({ 
+    res.json({
       hasPermission,
-      permissions 
+      permissions
     });
   } catch (error) {
     console.error('Error al verificar permisos:', error);
@@ -337,7 +337,7 @@ const linkByCedula = async (req, res) => {
     console.log('Resultado búsqueda por cédula:', elderlyData, elderlyError);
 
     if (elderlyError || !elderlyData) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
         message: 'No se encontró un adulto mayor con esa cédula'
       });
@@ -346,7 +346,7 @@ const linkByCedula = async (req, res) => {
     // Verificar que sea un adulto mayor
     const validRoles = ['adultoMayor', 'adulto_mayor', 'Adulto Mayor'];
     if (!validRoles.includes(elderlyData.role)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
         message: `El usuario con esa cédula no es un adulto mayor (rol: ${elderlyData.role})`
       });
@@ -363,16 +363,16 @@ const linkByCedula = async (req, res) => {
       .single();
 
     if (existingRelation) {
-      return res.status(409).json({ 
+      return res.status(409).json({
         success: false,
-        message: 'Ya existe una vinculación con este adulto mayor' 
+        message: 'Ya existe una vinculación con este adulto mayor'
       });
     }
 
     // Determinar el tipo de relación basado en el rol del usuario
     // El trigger de la BD valida que coincida con el rol
     let finalRelationshipType = userRole; // Usar el rol del usuario autenticado
-    
+
     // Si el usuario envió un relationshipType específico, validar que coincida
     if (relationshipType && relationshipType !== userRole) {
       console.warn(`Tipo de relación solicitado (${relationshipType}) no coincide con rol del usuario (${userRole}). Usando rol del usuario.`);
@@ -401,7 +401,7 @@ const linkByCedula = async (req, res) => {
 
     if (insertError) {
       console.error('Error al insertar relación:', insertError);
-      return res.status(500).json({ 
+      return res.status(500).json({
         success: false,
         message: 'Error al crear la vinculación',
         error: insertError.message
@@ -418,7 +418,7 @@ const linkByCedula = async (req, res) => {
     });
   } catch (error) {
     console.error('Error al vincular por cédula:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: 'Error al vincular el perfil',
       error: error.message
@@ -446,6 +446,7 @@ const getMyPatients = async (req, res) => {
           name,
           email,
           cedula,
+          phone,
           profile_image_url
         )
       `)
@@ -454,9 +455,9 @@ const getMyPatients = async (req, res) => {
 
     if (error) {
       console.error('Error al obtener pacientes:', error);
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Error al obtener los pacientes',
-        message: error.message 
+        message: error.message
       });
     }
 
@@ -467,6 +468,7 @@ const getMyPatients = async (req, res) => {
       name: rel.elderly.name,
       email: rel.elderly.email,
       cedula: rel.elderly.cedula,
+      phone: rel.elderly.phone,
       profile_image_url: rel.elderly.profile_image_url,
       relationship_type: rel.relationship_type,
       permissions: rel.permissions,
@@ -478,9 +480,9 @@ const getMyPatients = async (req, res) => {
     res.json(patients);
   } catch (error) {
     console.error('Error al obtener pacientes:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Error al obtener los pacientes',
-      message: error.message 
+      message: error.message
     });
   }
 };
