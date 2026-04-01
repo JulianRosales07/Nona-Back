@@ -180,9 +180,8 @@ const requestPasswordReset = async (req, res) => {
       .single();
 
     if (error || !user) {
-      // Por seguridad, no revelar si el email existe o no
-      return res.json({
-        message: 'Si el correo existe, recibirás un código de recuperación'
+      return res.status(404).json({
+        error: 'No existe una cuenta con este correo electrónico'
       });
     }
 
@@ -307,3 +306,58 @@ module.exports = {
   verifyResetCode,
   resetPassword
 };
+
+// Obtener perfil del usuario
+const getProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, phone, cedula, residence, birth_date, profile_image_url, created_at')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting profile:', error);
+    res.status(500).json({ error: 'Error al obtener el perfil' });
+  }
+};
+
+// Actualizar perfil del usuario
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, phone, cedula, residence, birth_date } = req.body;
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (cedula !== undefined) updateData.cedula = cedula;
+    if (residence !== undefined) updateData.residence = residence;
+    if (birth_date !== undefined) updateData.birth_date = birth_date;
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      message: 'Perfil actualizado correctamente',
+      user: data
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Error al actualizar el perfil' });
+  }
+};
+
+module.exports.getProfile = getProfile;
+module.exports.updateProfile = updateProfile;
