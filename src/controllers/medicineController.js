@@ -1,10 +1,11 @@
 const supabase = require('../config/database');
+const { canManagePatientData } = require('../middleware/checkRelationships');
 
 // Obtener todos los medicamentos de un paciente
 const getPatientMedicines = async (req, res) => {
     try {
         const { patientId } = req.params;
-        
+
         const { data, error } = await supabase
             .from('medicines')
             .select('*')
@@ -27,28 +28,20 @@ const getPatientMedicines = async (req, res) => {
 const createMedicine = async (req, res) => {
     try {
         const { patientId, name, dosage, frequency, time, notes, imageUrl } = req.body;
-        const userId = req.user.userId; // Cambio: usar userId del token
+        const userId = req.user.userId;
         const userRole = req.user.role;
 
         console.log('Creating medicine:', { userId, userRole, patientId, name });
 
-        // Verificar que el usuario tiene acceso al paciente
-        // Puede ser familiar o cuidador
-        const { data: relationData, error: relationError } = await supabase
-            .from('user_relationships')
-            .select('*')
-            .eq('caregiver_id', userId) // Cambio: usar caregiver_id
-            .eq('elderly_id', patientId); // Cambio: usar elderly_id
+        // Verificar permisos usando la nueva lógica
+        const permission = await canManagePatientData(userId, parseInt(patientId), userRole);
 
-        if (relationError) {
-            console.error('Error checking relationship:', relationError);
-            return res.status(500).json({ message: 'Error al verificar permisos', details: relationError.message });
+        if (!permission.allowed) {
+            console.log('Permission denied:', permission.reason);
+            return res.status(403).json({ message: permission.reason });
         }
 
-        if (!relationData || relationData.length === 0) {
-            console.log('No relationship found for user:', userId, 'and patient:', patientId);
-            return res.status(403).json({ message: 'No tienes permiso para agregar medicamentos a este paciente' });
-        }
+        console.log('Permission granted:', permission.reason);
 
         const { data, error } = await supabase
             .from('medicines')
@@ -83,7 +76,8 @@ const updateMedicine = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, dosage, frequency, time, notes } = req.body;
-        const userId = req.user.userId; // Cambio: usar userId del token
+        const userId = req.user.userId;
+        const userRole = req.user.role;
 
         // Primero obtener el medicamento para saber el patient_id
         const { data: medicineData, error: medicineError } = await supabase
@@ -96,15 +90,11 @@ const updateMedicine = async (req, res) => {
             return res.status(404).json({ message: 'Medicamento no encontrado' });
         }
 
-        // Verificar que el usuario tiene acceso al paciente
-        const { data: relationData, error: relationError } = await supabase
-            .from('user_relationships')
-            .select('*')
-            .eq('caregiver_id', userId) // Cambio: usar caregiver_id
-            .eq('elderly_id', medicineData.patient_id); // Cambio: usar elderly_id
+        // Verificar permisos usando la nueva lógica
+        const permission = await canManagePatientData(userId, medicineData.patient_id, userRole);
 
-        if (relationError || !relationData || relationData.length === 0) {
-            return res.status(403).json({ message: 'No tienes permiso para modificar este medicamento' });
+        if (!permission.allowed) {
+            return res.status(403).json({ message: permission.reason });
         }
 
         const { data, error } = await supabase
@@ -137,7 +127,8 @@ const updateMedicine = async (req, res) => {
 const deleteMedicine = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.user.userId; // Cambio: usar userId del token
+        const userId = req.user.userId;
+        const userRole = req.user.role;
 
         // Primero obtener el medicamento para saber el patient_id
         const { data: medicineData, error: medicineError } = await supabase
@@ -150,15 +141,11 @@ const deleteMedicine = async (req, res) => {
             return res.status(404).json({ message: 'Medicamento no encontrado' });
         }
 
-        // Verificar que el usuario tiene acceso al paciente
-        const { data: relationData, error: relationError } = await supabase
-            .from('user_relationships')
-            .select('*')
-            .eq('caregiver_id', userId) // Cambio: usar caregiver_id
-            .eq('elderly_id', medicineData.patient_id); // Cambio: usar elderly_id
+        // Verificar permisos usando la nueva lógica
+        const permission = await canManagePatientData(userId, medicineData.patient_id, userRole);
 
-        if (relationError || !relationData || relationData.length === 0) {
-            return res.status(403).json({ message: 'No tienes permiso para eliminar este medicamento' });
+        if (!permission.allowed) {
+            return res.status(403).json({ message: permission.reason });
         }
 
         const { error } = await supabase

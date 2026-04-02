@@ -1,6 +1,7 @@
 const supabase = require('../config/database');
+const { canManagePatientData } = require('../middleware/checkRelationships');
 
-
+// Crear una nueva cita
 const createAppointment = async (req, res) => {
     try {
         const {
@@ -13,8 +14,10 @@ const createAppointment = async (req, res) => {
             notes
         } = req.body;
 
-        const created_by = req.user.userId;
+        const created_by = req.user.userId; // Usar userId del token
+        const userRole = req.user.role;
 
+        // Validar campos requeridos
         if (!patient_id || !doctor_name || !specialty || !appointment_date || !appointment_time || !location) {
             return res.status(400).json({
                 success: false,
@@ -22,21 +25,18 @@ const createAppointment = async (req, res) => {
             });
         }
 
-        if (req.user.userId !== patient_id) {
-            const { data: relationships, error: relError } = await supabase
-                .from('user_relationships')
-                .select('id')
-                .eq('elderly_id', patient_id)
-                .eq('caregiver_id', req.user.userId)
-                .eq('status', 'active');
+        // Verificar permisos usando la nueva lógica
+        const permission = await canManagePatientData(req.user.userId, parseInt(patient_id), userRole);
 
-            if (relError || !relationships || relationships.length === 0) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'No tienes permiso para crear citas para este paciente'
-                });
-            }
+        if (!permission.allowed) {
+            console.log('Permission denied:', permission.reason);
+            return res.status(403).json({
+                success: false,
+                message: permission.reason
+            });
         }
+
+        console.log('Permission granted for appointment creation:', permission.reason);
 
         const { data: result, error } = await supabase
             .from('appointments')
@@ -71,9 +71,12 @@ const createAppointment = async (req, res) => {
     }
 };
 
+// Obtener todas las citas de un paciente
 const getPatientAppointments = async (req, res) => {
     try {
         const { patientId } = req.params;
+
+        // Verificar que el usuario tenga permiso para ver las citas
         if (req.user.userId !== parseInt(patientId)) {
             const { data: relationships, error: relError } = await supabase
                 .from('user_relationships')
@@ -104,6 +107,7 @@ const getPatientAppointments = async (req, res) => {
             throw error;
         }
 
+        // Formatear los datos para que coincidan con la estructura esperada
         const formattedAppointments = appointments.map(apt => ({
             ...apt,
             created_by_name: apt.created_by_user?.name,
@@ -124,6 +128,7 @@ const getPatientAppointments = async (req, res) => {
     }
 };
 
+// Obtener una cita específica
 const getAppointmentById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -150,6 +155,7 @@ const getAppointmentById = async (req, res) => {
             created_by_role: appointments.created_by_user?.role
         };
 
+        // Verificar permisos
         if (req.user.userId !== appointment.patient_id) {
             const { data: relationships, error: relError } = await supabase
                 .from('user_relationships')
@@ -180,6 +186,7 @@ const getAppointmentById = async (req, res) => {
     }
 };
 
+// Actualizar una cita
 const updateAppointment = async (req, res) => {
     try {
         const { id } = req.params;
@@ -193,6 +200,10 @@ const updateAppointment = async (req, res) => {
             status
         } = req.body;
 
+        const userId = req.user.userId;
+        const userRole = req.user.role;
+
+        // Verificar que la cita existe y obtener el patient_id
         const { data: existingAppointment, error: fetchError } = await supabase
             .from('appointments')
             .select('patient_id, created_by')
@@ -206,24 +217,19 @@ const updateAppointment = async (req, res) => {
             });
         }
 
-        const { patient_id, created_by: appointmentCreator } = existingAppointment;
+        const { patient_id } = existingAppointment;
 
-        if (req.user.userId !== appointmentCreator && req.user.userId !== patient_id) {
-            const { data: relationships, error: relError } = await supabase
-                .from('user_relationships')
-                .select('id')
-                .eq('elderly_id', patient_id)
-                .eq('caregiver_id', req.user.userId)
-                .eq('status', 'active');
+        // Verificar permisos usando la nueva lógica
+        const permission = await canManagePatientData(userId, patient_id, userRole);
 
-            if (relError || !relationships || relationships.length === 0) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'No tienes permiso para actualizar esta cita'
-                });
-            }
+        if (!permission.allowed) {
+            return res.status(403).json({
+                success: false,
+                message: permission.reason
+            });
         }
 
+        // Preparar datos de actualización
         const updateData = {};
         if (doctor_name !== undefined) updateData.doctor_name = doctor_name;
         if (specialty !== undefined) updateData.specialty = specialty;
@@ -260,9 +266,14 @@ const updateAppointment = async (req, res) => {
     }
 };
 
+// Eliminar una cita
 const deleteAppointment = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user.userId;
+        const userRole = req.user.role;
+
+        // Verificar que la cita existe
         const { data: existingAppointment, error: fetchError } = await supabase
             .from('appointments')
             .select('patient_id, created_by')
@@ -276,22 +287,16 @@ const deleteAppointment = async (req, res) => {
             });
         }
 
-        const { patient_id, created_by: appointmentCreator } = existingAppointment;
+        const { patient_id } = existingAppointment;
 
-        if (req.user.userId !== appointmentCreator && req.user.userId !== patient_id) {
-            const { data: relationships, error: relError } = await supabase
-                .from('user_relationships')
-                .select('id')
-                .eq('elderly_id', patient_id)
-                .eq('caregiver_id', req.user.userId)
-                .eq('status', 'active');
+        // Verificar permisos usando la nueva lógica
+        const permission = await canManagePatientData(userId, patient_id, userRole);
 
-            if (relError || !relationships || relationships.length === 0) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'No tienes permiso para eliminar esta cita'
-                });
-            }
+        if (!permission.allowed) {
+            return res.status(403).json({
+                success: false,
+                message: permission.reason
+            });
         }
 
         const { error } = await supabase
@@ -317,6 +322,7 @@ const deleteAppointment = async (req, res) => {
     }
 };
 
+// Cambiar el estado de una cita
 const updateAppointmentStatus = async (req, res) => {
     try {
         const { id } = req.params;
