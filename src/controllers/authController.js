@@ -374,6 +374,28 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// Obtener todos los usuarios (Para el panel de administración web)
+const getAllUsers = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, phone, cedula, residence, birth_date, profile_image_url, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching all users:', error);
+      throw error;
+    }
+
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Error al obtener los usuarios',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -381,5 +403,6 @@ module.exports = {
   verifyResetCode,
   resetPassword,
   getProfile,
-  updateProfile
+  updateProfile,
+  getAllUsers
 };
