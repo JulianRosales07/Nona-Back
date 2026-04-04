@@ -140,71 +140,76 @@ async function checkAndSendMedicineReminders() {
         id,
         name,
         time,
-        patient_id,
-        users:patient_id (
-          name,
-          email
-        )
+        patient_id
       `)
       .not('time', 'is', null);
 
     if (error) throw error;
 
     const now = new Date();
+    // Ajustar a zona horaria local si es necesario, pero Supabase/Heroku suelen usar UTC.
+    // Asumiremos que el servidor maneja la hora local configurada o UTC según el entorno.
     const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
 
-    console.log(`⏰ Hora actual: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
+    console.log(`⏰ Hora servidor: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
 
     let sentCount = 0;
 
     for (const medicine of medicines) {
-      // Parsear el horario del medicamento (puede estar en varios formatos)
-      const medicineTime = parseMedicineTime(medicine.time);
+      if (!medicine.time) continue;
 
-      if (!medicineTime) continue;
+      // Handle multiple times separated by comma
+      const timeSlots = medicine.time.split(',').map(t => t.trim());
+      
+      for (const slot of timeSlots) {
+        const medicineTime = parseMedicineTime(slot);
+        if (!medicineTime) continue;
 
-      // Calcular la hora de notificación (10 minutos antes)
-      const [medHour, medMinute] = medicineTime.split(':').map(Number);
-      const medicineTotalMinutes = medHour * 60 + medMinute;
-      let notificationTotalMinutes = medicineTotalMinutes - 10;
-      if (notificationTotalMinutes < 0) notificationTotalMinutes += 1440; // Wrap al día anterior
+        // Calcular la hora de notificación (10 minutos antes)
+        const [medHour, medMinute] = medicineTime.split(':').map(Number);
+        const medicineTotalMinutes = medHour * 60 + medMinute;
+        let notificationTotalMinutes = medicineTotalMinutes - 10;
+        if (notificationTotalMinutes < 0) notificationTotalMinutes += 1440;
 
-      // Comparar con un margen de ±1 minuto para no perder notificaciones
-      const diff = Math.abs(currentTotalMinutes - notificationTotalMinutes);
-      const isTimeToNotify = diff <= 1 || diff >= 1439; // También cubre el wrap de medianoche
+        // Margen de 1 minuto
+        const diff = Math.min(
+          Math.abs(currentTotalMinutes - notificationTotalMinutes),
+          1440 - Math.abs(currentTotalMinutes - notificationTotalMinutes)
+        );
+        
+        const isTimeToNotify = diff <= 1;
 
-      const notificationHour = Math.floor(notificationTotalMinutes / 60);
-      const notificationMinute = notificationTotalMinutes % 60;
-      console.log(`📋 ${medicine.name}: Hora programada ${medicineTime}, notificación ${notificationHour.toString().padStart(2, '0')}:${notificationMinute.toString().padStart(2, '0')}`);
+        if (isTimeToNotify) {
+          console.log(`🎯 Coincidencia para ${medicine.name} en horario ${slot}`);
+          
+          // Verificar si ya se tomó recientemente (en los últimos 30 minutos) 
+          // para evitar duplicados si el scheduler se ejecuta más de una vez por minuto
+          // o si ya se registró la toma para este bloque específico
+          const halfHourAgo = new Date(now.getTime() - 30 * 60000).toISOString();
+          
+          const { data: recentLogs } = await supabase
+            .from('medicine_logs')
+            .select('id')
+            .eq('medicine_id', medicine.id)
+            .gte('taken_at', halfHourAgo)
+            .limit(1);
 
-      if (isTimeToNotify) {
-        // Verificar si ya se tomó hoy
-        const today = new Date().toISOString().split('T')[0];
-        const { data: logs } = await supabase
-          .from('medicine_logs')
-          .select('id')
-          .eq('medicine_id', medicine.id)
-          .eq('patient_id', medicine.patient_id)
-          .gte('taken_at', `${today}T00:00:00`)
-          .lte('taken_at', `${today}T23:59:59`)
-          .limit(1);
-
-        if (!logs || logs.length === 0) {
-          // No se ha tomado, enviar recordatorio
-          await sendMedicineReminder(
-            medicine.patient_id,
-            medicine.name,
-            medicine.time
-          );
-          sentCount++;
-          console.log(`✅ Recordatorio enviado para ${medicine.name}`);
-        } else {
-          console.log(`⏭️  ${medicine.name} ya fue tomado hoy`);
+          if (!recentLogs || recentLogs.length === 0) {
+            await sendMedicineReminder(
+              medicine.patient_id,
+              medicine.name,
+              slot
+            );
+            sentCount++;
+            console.log(`✅ Recordatorio enviado para ${medicine.name} (${slot})`);
+          } else {
+            console.log(`⏭️  ${medicine.name} ya tiene un log reciente, saltando recordatorio.`);
+          }
         }
       }
     }
 
-    console.log(`📬 Total de recordatorios enviados: ${sentCount}`);
+    console.log(`📬 Total de recordatorios enviados en esta ejecución: ${sentCount}`);
     return { success: true, sent: sentCount };
 
   } catch (error) {

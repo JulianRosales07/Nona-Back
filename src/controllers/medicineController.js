@@ -43,6 +43,29 @@ const createMedicine = async (req, res) => {
 
         console.log('Permission granted:', permission.reason);
 
+        // ALIMENTAR LA BASE DE DATOS GLOBAL (drug_database)
+        try {
+            const { data: existingDrug } = await supabase
+                .from('drug_database')
+                .select('id')
+                .ilike('name', name)
+                .maybeSingle();
+
+            if (!existingDrug) {
+                console.log('New drug detected, feeding drug_database:', name);
+                await supabase
+                    .from('drug_database')
+                    .insert([{
+                        name: name,
+                        strength: dosage,
+                        description: notes || 'Agregado por usuario',
+                        generic_name: name
+                    }]);
+            }
+        } catch (dbError) {
+            console.error('Error feeding drug_database (non-critical):', dbError.message);
+        }
+
         const { data, error } = await supabase
             .from('medicines')
             .insert([{
@@ -63,7 +86,6 @@ const createMedicine = async (req, res) => {
             return res.status(500).json({ message: 'Error al crear medicamento', details: error.message });
         }
 
-        console.log('Medicine created successfully:', data);
         res.status(201).json(data);
     } catch (error) {
         console.error('Error creating medicine:', error);
@@ -95,6 +117,31 @@ const updateMedicine = async (req, res) => {
 
         if (!permission.allowed) {
             return res.status(403).json({ message: permission.reason });
+        }
+
+        // ALIMENTAR LA BASE DE DATOS GLOBAL (drug_database) al actualizar
+        if (name) {
+            try {
+                const { data: existingDrug } = await supabase
+                    .from('drug_database')
+                    .select('id')
+                    .ilike('name', name)
+                    .maybeSingle();
+
+                if (!existingDrug) {
+                    console.log('New drug detected on update, feeding drug_database:', name);
+                    await supabase
+                        .from('drug_database')
+                        .insert([{
+                            name: name,
+                            strength: dosage || '',
+                            description: notes || 'Actualizado por usuario',
+                            generic_name: name
+                        }]);
+                }
+            } catch (dbError) {
+                console.error('Error feeding drug_database (non-critical):', dbError.message);
+            }
         }
 
         const { data, error } = await supabase

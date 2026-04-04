@@ -113,8 +113,38 @@ const getUserTokens = async (req, res) => {
   }
 };
 
+// Enviar una notificación de prueba al usuario actual
+const testPushNotification = async (req, res) => {
+  const user_id = req.user.userId;
+  const { sendPushNotification } = require('../services/notificationService');
+
+  try {
+    console.log(`Enviando notificación de prueba al usuario ${user_id}`);
+    
+    const result = await sendPushNotification(
+      user_id,
+      '🧪 Prueba de Nona',
+      '¡Genial! Las notificaciones están funcionando correctamente en tu dispositivo.',
+      { type: 'test_notification', sent_at: new Date().toISOString() }
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ 
+        error: 'No se pudo enviar la notificación', 
+        details: result.message 
+      });
+    }
+
+    res.json({ message: 'Notificación de prueba enviada', result });
+  } catch (error) {
+    console.error('Error in testPushNotification:', error);
+    res.status(500).json({ error: 'Error interno al enviar prueba' });
+  }
+};
+
 module.exports = {
   registerPushToken,
   deactivatePushToken,
-  getUserTokens
+  getUserTokens,
+  testPushNotification
 };

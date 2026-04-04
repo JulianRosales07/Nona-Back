@@ -15,4 +15,7 @@ router.post('/deactivate', pushTokenController.deactivatePushToken);
 // Obtener tokens de un usuario
 router.get('/user/:userId', pushTokenController.getUserTokens);
 
+// Enviar notificación de prueba
+router.post('/test', pushTokenController.testPushNotification);
+
 module.exports = router;
