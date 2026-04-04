@@ -396,6 +396,34 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+// Actualizar usuario por Administrador
+const adminUpdateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, name, phone, cedula, password } = req.body;
+    
+    // Preparar campos a actualizar
+    const updates = { role, name, phone, cedula };
+    if (password && password.trim() !== '') {
+      const bcrypt = require('bcryptjs');
+      updates.password = await bcrypt.hash(password, 10);
+    }
+    
+    // Primero actualizar en Auth si cambió password? Supabase maneja auth.users por separado, pero esta API guarda la pass hasheada en la tabla `users` pública según NonaBack.
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar usuario', details: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -404,5 +432,6 @@ module.exports = {
   resetPassword,
   getProfile,
   updateProfile,
-  getAllUsers
+  getAllUsers,
+  adminUpdateUser
 };

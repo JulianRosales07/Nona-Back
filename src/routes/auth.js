@@ -7,7 +7,9 @@ const {
     resetPassword,
     getProfile,
     updateProfile,
-    getAllUsers
+    updateProfile,
+    getAllUsers,
+    adminUpdateUser
 } = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
@@ -20,5 +22,6 @@ router.post('/reset-password', resetPassword);
 router.get('/profile', authenticateToken, getProfile);
 router.put('/profile', authenticateToken, updateProfile);
 router.get('/all', authenticateToken, getAllUsers);
+router.put('/admin/user/:id', authenticateToken, adminUpdateUser);
 
 module.exports = router;
