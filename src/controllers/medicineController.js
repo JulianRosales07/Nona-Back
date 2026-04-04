@@ -165,8 +165,32 @@ const deleteMedicine = async (req, res) => {
     }
 };
 
+// Obtener TODOS los medicamentos de todo el sistema (Para Admin)
+const getAllMedicines = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('medicines')
+            .select(`
+                *,
+                users!medicines_patient_id_fkey(name, email)
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching all medicines:', error);
+            return res.status(500).json({ message: 'Error al obtener todos los medicamentos' });
+        }
+
+        res.json(data || []);
+    } catch (error) {
+        console.error('Error fetching all medicines:', error);
+        res.status(500).json({ message: 'Error al obtener todos los medicamentos' });
+    }
+};
+
 module.exports = {
     getPatientMedicines,
+    getAllMedicines,
     createMedicine,
     updateMedicine,
     deleteMedicine

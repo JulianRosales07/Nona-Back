@@ -6,6 +6,9 @@ const { authenticateToken } = require('../middleware/auth');
 // Todas las rutas requieren autenticación
 router.use(authenticateToken);
 
+// Obtener todos los medicamentos (para el admin)
+router.get('/all', medicineController.getAllMedicines);
+
 // Obtener medicamentos de un paciente
 router.get('/patient/:patientId', medicineController.getPatientMedicines);
 
