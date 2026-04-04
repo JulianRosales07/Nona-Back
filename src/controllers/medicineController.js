@@ -47,7 +47,7 @@ const createMedicine = async (req, res) => {
         try {
             const { data: existingDrug } = await supabase
                 .from('drug_database')
-                .select('id')
+                .select('id, image_url')
                 .ilike('name', name)
                 .maybeSingle();
 
@@ -59,8 +59,16 @@ const createMedicine = async (req, res) => {
                         name: name,
                         strength: dosage,
                         description: notes || 'Agregado por usuario',
-                        generic_name: name
+                        generic_name: name,
+                        image_url: imageUrl // Guardar imagen también en la base global
                     }]);
+            } else if (imageUrl && (!existingDrug.image_url)) {
+                // Si ya existe pero no tiene imagen y ahora sí enviamos una, la actualizamos globalmente
+                console.log('Updating drug image in drug_database:', name);
+                await supabase
+                    .from('drug_database')
+                    .update({ image_url: imageUrl })
+                    .eq('id', existingDrug.id);
             }
         } catch (dbError) {
             console.error('Error feeding drug_database (non-critical):', dbError.message);
@@ -124,7 +132,7 @@ const updateMedicine = async (req, res) => {
             try {
                 const { data: existingDrug } = await supabase
                     .from('drug_database')
-                    .select('id')
+                    .select('id, image_url')
                     .ilike('name', name)
                     .maybeSingle();
 
@@ -136,8 +144,14 @@ const updateMedicine = async (req, res) => {
                             name: name,
                             strength: dosage || '',
                             description: notes || 'Actualizado por usuario',
-                            generic_name: name
+                            generic_name: name,
+                            image_url: imageUrl || null
                         }]);
+                } else if (imageUrl && (!existingDrug.image_url)) {
+                    await supabase
+                        .from('drug_database')
+                        .update({ image_url: imageUrl })
+                        .eq('id', existingDrug.id);
                 }
             } catch (dbError) {
                 console.error('Error feeding drug_database (non-critical):', dbError.message);
@@ -249,7 +263,7 @@ const searchDrugDatabase = async (req, res) => {
         // Intentar buscar en la tabla drug_database de Supabase
         const { data, error } = await supabase
             .from('drug_database')
-            .select('id, name, generic_name, dosage_form, strength, manufacturer, description, contraindications, side_effects')
+            .select('id, name, generic_name, dosage_form, strength, manufacturer, description, contraindications, side_effects, image_url')
             .or(`name.ilike.%${searchTerm}%,generic_name.ilike.%${searchTerm}%`)
             .limit(20);
 
