@@ -27,7 +27,8 @@ const getPatientMedicines = async (req, res) => {
 // Crear un nuevo medicamento
 const createMedicine = async (req, res) => {
     try {
-        const { patientId, name, dosage, frequency, time, notes, imageUrl, drugId } = req.body;
+        const { patientId, name, dosage, frequency, time, notes, drugId } = req.body;
+        const imageUrl = req.body.imageUrl || req.body.image_url;
         const userId = req.user.userId;
         const userRole = req.user.role;
 
@@ -116,7 +117,8 @@ const createMedicine = async (req, res) => {
 const updateMedicine = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, dosage, frequency, time, notes } = req.body;
+        const { name, dosage, frequency, time, notes, drugId } = req.body;
+        const imageUrl = req.body.imageUrl || req.body.image_url;
         const userId = req.user.userId;
         const userRole = req.user.role;
 
