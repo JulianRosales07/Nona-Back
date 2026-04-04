@@ -6,6 +6,9 @@ const { authenticateToken } = require('../middleware/auth');
 // Todas las rutas requieren autenticación
 router.use(authenticateToken);
 
+// Buscar medicamentos en la base de datos de medicamentos
+router.get('/search', medicineController.searchDrugDatabase);
+
 // Obtener todos los medicamentos (para el admin)
 router.get('/all', medicineController.getAllMedicines);
 
