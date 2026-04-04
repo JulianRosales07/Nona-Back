@@ -7,7 +7,6 @@ const {
     resetPassword,
     getProfile,
     updateProfile,
-    updateProfile,
     getAllUsers,
     adminUpdateUser
 } = require('../controllers/authController');
