@@ -27,7 +27,7 @@ const getPatientMedicines = async (req, res) => {
 // Crear un nuevo medicamento
 const createMedicine = async (req, res) => {
     try {
-        const { patientId, name, dosage, frequency, time, notes, imageUrl } = req.body;
+        const { patientId, name, dosage, frequency, time, notes, imageUrl, drugId } = req.body;
         const userId = req.user.userId;
         const userRole = req.user.role;
 
@@ -43,6 +43,8 @@ const createMedicine = async (req, res) => {
 
         console.log('Permission granted:', permission.reason);
 
+        let finalDrugId = drugId;
+
         // ALIMENTAR LA BASE DE DATOS GLOBAL (drug_database)
         try {
             const { data: existingDrug } = await supabase
@@ -53,7 +55,7 @@ const createMedicine = async (req, res) => {
 
             if (!existingDrug) {
                 console.log('New drug detected, feeding drug_database:', name);
-                await supabase
+                const { data: newDbDrug, error: dbInsError } = await supabase
                     .from('drug_database')
                     .insert([{
                         name: name,
@@ -61,14 +63,22 @@ const createMedicine = async (req, res) => {
                         description: notes || 'Agregado por usuario',
                         generic_name: name,
                         image_url: imageUrl // Guardar imagen también en la base global
-                    }]);
-            } else if (imageUrl && (!existingDrug.image_url)) {
+                    }])
+                    .select('id')
+                    .single();
+                
+                if (!dbInsError && newDbDrug) {
+                    finalDrugId = newDbDrug.id;
+                }
+            } else {
+                finalDrugId = existingDrug.id;
                 // Si ya existe pero no tiene imagen y ahora sí enviamos una, la actualizamos globalmente
-                console.log('Updating drug image in drug_database:', name);
-                await supabase
-                    .from('drug_database')
-                    .update({ image_url: imageUrl })
-                    .eq('id', existingDrug.id);
+                if (imageUrl && !existingDrug.image_url) {
+                    await supabase
+                        .from('drug_database')
+                        .update({ image_url: imageUrl })
+                        .eq('id', existingDrug.id);
+                }
             }
         } catch (dbError) {
             console.error('Error feeding drug_database (non-critical):', dbError.message);
@@ -84,7 +94,8 @@ const createMedicine = async (req, res) => {
                 time,
                 notes,
                 image_url: imageUrl,
-                added_by: userId
+                added_by: userId,
+                drug_id: finalDrugId // Guardar la relación formal
             }])
             .select()
             .single();
@@ -128,6 +139,7 @@ const updateMedicine = async (req, res) => {
         }
 
         // ALIMENTAR LA BASE DE DATOS GLOBAL (drug_database) al actualizar
+        let finalDrugId = req.body.drugId;
         if (name) {
             try {
                 const { data: existingDrug } = await supabase
@@ -137,8 +149,7 @@ const updateMedicine = async (req, res) => {
                     .maybeSingle();
 
                 if (!existingDrug) {
-                    console.log('New drug detected on update, feeding drug_database:', name);
-                    await supabase
+                    const { data: newDbDrug, error: dbInsError } = await supabase
                         .from('drug_database')
                         .insert([{
                             name: name,
@@ -146,12 +157,18 @@ const updateMedicine = async (req, res) => {
                             description: notes || 'Actualizado por usuario',
                             generic_name: name,
                             image_url: imageUrl || null
-                        }]);
-                } else if (imageUrl && (!existingDrug.image_url)) {
-                    await supabase
-                        .from('drug_database')
-                        .update({ image_url: imageUrl })
-                        .eq('id', existingDrug.id);
+                        }])
+                        .select('id')
+                        .single();
+                    if (!dbInsError && newDbDrug) finalDrugId = newDbDrug.id;
+                } else {
+                    finalDrugId = existingDrug.id;
+                    if (imageUrl && !existingDrug.image_url) {
+                        await supabase
+                            .from('drug_database')
+                            .update({ image_url: imageUrl })
+                            .eq('id', existingDrug.id);
+                    }
                 }
             } catch (dbError) {
                 console.error('Error feeding drug_database (non-critical):', dbError.message);
@@ -166,6 +183,8 @@ const updateMedicine = async (req, res) => {
                 frequency,
                 time,
                 notes,
+                image_url: imageUrl,
+                drug_id: finalDrugId,
                 updated_at: new Date().toISOString()
             })
             .eq('id', id)
