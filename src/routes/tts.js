@@ -2,6 +2,36 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 
+/**
+ * @swagger
+ * tags:
+ *   name: TTS
+ *   description: Text to Speech (Generación de voz)
+ */
+
+/**
+ * @swagger
+ * /api/tts:
+ *   post:
+ *     summary: Convertir texto a voz
+ *     tags: [TTS]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - text
+ *             properties:
+ *               text:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Audio generado exitosamente
+ */
 router.post('/', authenticateToken, async (req, res) => {
     try {
         const { text } = req.body;

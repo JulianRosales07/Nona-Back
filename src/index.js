@@ -14,6 +14,8 @@ const placesRoutes = require('./routes/places');
 const transcribeRoutes = require('./routes/transcribe');
 const ttsRoutes = require('./routes/tts');
 const { startNotificationScheduler } = require('./services/scheduler');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,6 +42,9 @@ app.use('/api/assistant', assistantRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/transcribe', transcribeRoutes);
 app.use('/api/tts', ttsRoutes);
+
+// Documentación de Swagger
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

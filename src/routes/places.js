@@ -2,6 +2,31 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 
+/**
+ * @swagger
+ * tags:
+ *   name: Places
+ *   description: Autocompletado de ubicaciones
+ */
+
+/**
+ * @swagger
+ * /api/places/autocomplete:
+ *   get:
+ *     summary: Autocompletar ubicaciones con Google Places
+ *     tags: [Places]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: input
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lista de predicciones
+ */
 router.get('/autocomplete', authenticateToken, async (req, res) => {
     try {
         const { input } = req.query;

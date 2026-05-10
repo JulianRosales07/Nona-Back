@@ -10,6 +10,35 @@ const os = require('os');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
+/**
+ * @swagger
+ * tags:
+ *   name: Transcribe
+ *   description: Transcripción de audio a texto (Whisper)
+ */
+
+/**
+ * @swagger
+ * /api/transcribe:
+ *   post:
+ *     summary: Transcribir audio
+ *     tags: [Transcribe]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               audio:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Texto transcrito exitosamente
+ */
 router.post('/', authenticateToken, upload.single('audio'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No se recibió archivo de audio' });
