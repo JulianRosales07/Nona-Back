@@ -5,6 +5,10 @@ const supabase = require('../config/database');
  * @param {number} elderlyId - ID del adulto mayor
  * @returns {Promise<boolean>} - true si tiene relaciones activas, false si no
  */
+
+/**Aqui seria verificar que si es admin si lo deje asi no tenga relación */
+
+
 const hasActiveRelationships = async (elderlyId) => {
     try {
         const { data, error } = await supabase
@@ -39,27 +43,35 @@ const hasActiveRelationships = async (elderlyId) => {
  * @returns {Promise<{allowed: boolean, reason: string}>}
  */
 const canManagePatientData = async (userId, patientId, userRole) => {
+    // Los admins tienen acceso total sin necesidad de relación ni patient_id asociado
+    if (['admin', 'Admin'].includes(userRole)) {
+        return {
+            allowed: true,
+            reason: 'Admin tiene acceso total a la gestión de datos'
+        };
+    }
+
     // Si el usuario es el mismo paciente
     if (userId === patientId) {
         // Verificar si es adulto mayor
         if (['adultoMayor', 'adulto_mayor', 'Adulto Mayor'].includes(userRole)) {
             // Verificar si tiene relaciones activas
             const hasRelations = await hasActiveRelationships(patientId);
-            
+
             if (hasRelations) {
                 return {
                     allowed: false,
                     reason: 'El adulto mayor tiene cuidadores o familiares vinculados. Solo ellos pueden gestionar medicamentos y citas.'
                 };
             }
-            
+
             // No tiene relaciones, puede gestionar sus propios datos
             return {
                 allowed: true,
                 reason: 'Adulto mayor sin relaciones activas puede gestionar sus propios datos'
             };
         }
-        
+
         // Si no es adulto mayor pero es el mismo usuario, permitir
         return {
             allowed: true,

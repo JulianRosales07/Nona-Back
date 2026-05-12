@@ -31,11 +31,17 @@ const createMedicine = async (req, res) => {
         const imageUrl = req.body.imageUrl || req.body.image_url;
         const userId = req.user.userId;
         const userRole = req.user.role;
+        const isAdmin = ['admin', 'Admin'].includes(userRole);
 
         console.log('Creating medicine:', { userId, userRole, patientId, name });
 
+        // El admin puede crear medicamentos sin patient_id asociado
+        if (!isAdmin && !patientId) {
+            return res.status(400).json({ message: 'El campo patientId es requerido' });
+        }
+
         // Verificar permisos usando la nueva lógica
-        const permission = await canManagePatientData(userId, parseInt(patientId), userRole);
+        const permission = await canManagePatientData(userId, patientId ? parseInt(patientId) : null, userRole);
 
         if (!permission.allowed) {
             console.log('Permission denied:', permission.reason);
