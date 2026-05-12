@@ -14,18 +14,16 @@ const placesRoutes = require('./routes/places');
 const transcribeRoutes = require('./routes/transcribe');
 const ttsRoutes = require('./routes/tts');
 const { startNotificationScheduler } = require('./services/scheduler');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./config/swagger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configuración CORS más permisiva para producción
 app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: false
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
 }));
 
 app.use(express.json({ limit: '10mb' })); // Aumentar límite para imágenes base64
@@ -43,25 +41,22 @@ app.use('/api/places', placesRoutes);
 app.use('/api/transcribe', transcribeRoutes);
 app.use('/api/tts', ttsRoutes);
 
-// Documentación de Swagger
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
+  res.json({ status: 'ok' });
 });
 
 app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development'
-    });
+  res.json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor corriendo en puerto ${PORT}`);
-    console.log(`Accesible desde: http://192.168.80.23:${PORT}`);
-
-    // Iniciar el scheduler de notificaciones
-    startNotificationScheduler();
+  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log(`Accesible desde: http://192.168.80.23:${PORT}`);
+  
+  // Iniciar el scheduler de notificaciones
+  startNotificationScheduler();
 });
