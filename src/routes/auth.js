@@ -8,7 +8,8 @@ const {
     getProfile,
     updateProfile,
     getAllUsers,
-    adminUpdateUser
+    adminUpdateUser,
+    adminDeleteUser
 } = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
@@ -87,5 +88,6 @@ router.get('/profile', authenticateToken, getProfile);
 router.put('/profile', authenticateToken, updateProfile);
 router.get('/all', authenticateToken, getAllUsers);
 router.put('/admin/user/:id', authenticateToken, adminUpdateUser);
+router.delete('/admin/user/:id', authenticateToken, adminDeleteUser);
 
 module.exports = router;
