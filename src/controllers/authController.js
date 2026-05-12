@@ -419,8 +419,229 @@ const adminUpdateUser = async (req, res) => {
 
     if (error) throw error;
     res.json(data);
+      resetCodes.delete(email);
+      return res.status(400).json({ error: 'El código ha expirado' });
+    }
+
+    if (resetData.code !== code) {
+      return res.status(400).json({ error: 'Código incorrecto' });
+    }
+
+    // Código válido
+    res.json({
+      message: 'Código verificado correctamente',
+      valid: true
+    });
+  } catch (error) {
+    console.error('Verify reset code error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({
+        error: 'Email, código y nueva contraseña son requeridos'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        error: 'La contraseña debe tener al menos 6 caracteres'
+      });
+    }
+
+    const resetData = resetCodes.get(email);
+
+    if (!resetData) {
+      return res.status(400).json({ error: 'Código inválido o expirado' });
+    }
+
+    if (Date.now() > resetData.expiresAt) {
+      resetCodes.delete(email);
+      return res.status(400).json({ error: 'El código ha expirado' });
+    }
+
+    if (resetData.code !== code) {
+      return res.status(400).json({ error: 'Código incorrecto' });
+    }
+
+    // Hash de la nueva contraseña
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Actualizar contraseña en la base de datos
+    const { error } = await supabase
+      .from('users')
+      .update({ password: hashedPassword })
+      .eq('id', resetData.userId);
+
+    if (error) {
+      console.error('Error updating password:', error);
+      return res.status(500).json({ error: 'Error al actualizar la contraseña' });
+    }
+
+    // Eliminar el código usado
+    resetCodes.delete(email);
+
+    res.json({
+      message: 'Contraseña actualizada correctamente'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Obtener perfil del usuario
+const getProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Usuario no identificado en el token' });
+    }
+
+    // Consultar el perfil incluyendo 'residence'
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, phone, cedula, residence, birth_date, profile_image_url, created_at')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error supabase getProfile:', error);
+      throw error;
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting profile:', error);
+    res.status(500).json({
+      error: 'Error al obtener el perfil',
+      details: error.message
+    });
+  }
+};
+
+// Actualizar perfil del usuario
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Usuario no identificado en el token' });
+    }
+
+    const { name, phone, cedula, residence, birth_date } = req.body;
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (cedula !== undefined) updateData.cedula = cedula;
+    if (residence !== undefined) updateData.residence = residence;
+    if (birth_date !== undefined) updateData.birth_date = birth_date;
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select('id, name, email, role, phone, cedula, residence, birth_date, profile_image_url, created_at')
+      .single();
+
+    if (error) {
+      console.error('Error supabase updateProfile:', error);
+      throw error;
+    }
+
+    res.json({
+      message: 'Perfil actualizado correctamente',
+      user: data
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({
+      error: 'Error al actualizar el perfil',
+      details: error.message
+    });
+  }
+};
+
+// Obtener todos los usuarios (Para el panel de administración web)
+const getAllUsers = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, phone, cedula, residence, birth_date, profile_image_url, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching all users:', error);
+      throw error;
+    }
+
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Error al obtener los usuarios',
+      details: error.message
+    });
+  }
+};
+
+// Actualizar usuario por Administrador
+const adminUpdateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, name, phone, cedula, password } = req.body;
+    
+    // Preparar campos a actualizar
+    const updates = { role, name, phone, cedula };
+    if (password && password.trim() !== '') {
+      const bcrypt = require('bcryptjs');
+      updates.password = await bcrypt.hash(password, 10);
+    }
+    
+    // Primero actualizar en Auth si cambió password? Supabase maneja auth.users por separado, pero esta API guarda la pass hasheada en la tabla `users` pública según NonaBack.
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar usuario', details: error.message });
+  }
+};
+
+// Eliminar usuario por Administrador
+const adminDeleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Primero eliminar relaciones asociadas
+    await supabase
+      .from('relationships')
+      .delete()
+      .or(`caregiver_id.eq.${id},elderly_id.eq.${id}`);
+
+    // Eliminar el usuario
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({ message: 'Usuario eliminado correctamente' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Error al eliminar usuario', details: error.message });
   }
 };
 
@@ -433,5 +654,6 @@ module.exports = {
   getProfile,
   updateProfile,
   getAllUsers,
-  adminUpdateUser
+  adminUpdateUser,
+  adminDeleteUser
 };
