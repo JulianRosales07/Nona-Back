@@ -57,7 +57,8 @@ router.post('/', async (req, res) => {
       voice: {
         languageCode: 'es-US', // Español de Estados Unidos
         name: 'es-US-Neural2-A', // Voz neural femenina
-        ssmlGender: 'FEMALE'
+        ssmlGender: 'FEMALE',
+        speakingRate: 0.9
       },
       audioConfig: { audioEncoding: 'MP3' },
     };
