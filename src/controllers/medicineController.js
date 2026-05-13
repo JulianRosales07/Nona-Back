@@ -33,7 +33,7 @@ const createMedicine = async (req, res) => {
         const imageUrl = req.body.imageUrl || req.body.image_url;
         const userId = req.user.userId;
         const userRole = req.user.role;
-        const isAdmin = ['admin', 'Admin'].includes(userRole);
+        const isAdmin = userRole && ['admin', 'Admin', 'ADMIN'].includes(userRole);
 
         console.log('Creating medicine:', { userId, userRole, patientId, name });
 
@@ -151,7 +151,7 @@ const updateMedicine = async (req, res) => {
         const imageUrl = req.body.imageUrl || req.body.image_url;
         const userId = req.user.userId;
         const userRole = req.user.role;
-        const isAdmin = ['admin', 'Admin'].includes(userRole);
+        const isAdmin = userRole && ['admin', 'Admin', 'ADMIN'].includes(userRole);
 
         // Si es admin, intentamos actualizar en el catálogo global (drug_database)
         if (isAdmin) {
@@ -262,7 +262,7 @@ const deleteMedicine = async (req, res) => {
         const { id } = req.params;
         const userId = req.user.userId;
         const userRole = req.user.role;
-        const isAdmin = ['admin', 'Admin'].includes(userRole);
+        const isAdmin = userRole && ['admin', 'Admin', 'ADMIN'].includes(userRole);
 
         // Si es admin, intentamos eliminar del catálogo global (drug_database)
         if (isAdmin) {
@@ -271,13 +271,12 @@ const deleteMedicine = async (req, res) => {
                 .delete()
                 .eq('id', id);
 
-            // Supabase delete doesn't return error if 0 rows matched, but we can't easily distinguish.
-            // For now, if we are in this flow, we assume it's a global med or we fallback.
-            // But actually, we want to know if it was in drug_database.
-            // Let's check existence first or just try both.
+            if (drugError) {
+                console.error('Error deleting global medicine:', drugError);
+                return res.status(500).json({ message: 'Error al eliminar del catálogo global' });
+            }
             
-            // Re-fetch to see if it still exists in drug_database? No, too expensive.
-            // Let's just try to delete and then proceed if needed.
+            return res.json({ message: 'Medicamento eliminado del catálogo global' });
         }
 
         // Primero obtener el medicamento para saber el patient_id
@@ -466,10 +465,55 @@ const searchDrugDatabase = async (req, res) => {
     }
 };
 
+// Obtener un medicamento por ID (de catálogo o de paciente)
+const getMedicineById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userRole = req.user.role;
+        const isAdmin = userRole && ['admin', 'Admin', 'ADMIN'].includes(userRole);
+
+        // Si es admin, buscamos primero en el catálogo global
+        if (isAdmin) {
+            const { data: drug, error: drugError } = await supabase
+                .from('drug_database')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+
+            if (!drugError && drug) {
+                return res.json(drug);
+            }
+        }
+
+        // Si no es admin o no se encontró en el catálogo, buscamos en medicines
+        const { data: medicine, error: medError } = await supabase
+            .from('medicines')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (medError) {
+            console.error('Error fetching medicine by ID:', medError);
+            return res.status(500).json({ message: 'Error al obtener el medicamento' });
+        }
+
+        if (!medicine) {
+            return res.status(404).json({ message: 'Medicamento no encontrado' });
+        }
+
+        res.json(medicine);
+    } catch (error) {
+        console.error('Error fetching medicine by ID:', error);
+        res.status(500).json({ message: 'Error al obtener el medicamento' });
+    }
+};
+
 module.exports = {
     getPatientMedicines,
     getAllMedicines,
+    getMedicineById,
     createMedicine,
+
     updateMedicine,
     deleteMedicine,
     searchDrugDatabase,

@@ -66,8 +66,10 @@ router.get('/all', medicineController.getAllMedicines);
  *         description: Lista de medicamentos
  */
 router.get('/patient/:patientId', medicineController.getPatientMedicines);
+router.get('/:id', medicineController.getMedicineById);
 
 // Crear medicamento
+
 /**
  * @swagger
  * /api/medicines:
