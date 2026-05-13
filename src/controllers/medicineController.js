@@ -153,31 +153,46 @@ const updateMedicine = async (req, res) => {
         const userRole = req.user.role;
         const isAdmin = userRole && ['admin', 'Admin', 'ADMIN'].includes(userRole);
 
-        console.log(`[MEDICINE_UPDATE] Request for ID: ${id}`, { name, userRole, isAdmin });
+        console.log(`[MEDICINE_UPDATE] Request for ID: ${id}`, { name, userRole, isAdmin, body: req.body });
 
         // Convertir ID a número si es posible para asegurar coincidencia en DB
         const numericId = !isNaN(id) ? parseInt(id) : id;
 
         // Si es admin, intentamos actualizar en el catálogo global (drug_database)
         if (isAdmin) {
-            console.log(`[MEDICINE_UPDATE] Admin flow - Updating drug_database for ID: ${numericId}`);
-            const { data: drugData, error: drugError } = await supabase
+            console.log(`[MEDICINE_UPDATE] Admin flow - Checking drug_database for ID: ${numericId}`);
+            
+            // Primero verificar si existe
+            const { data: existingDrug, error: checkError } = await supabase
                 .from('drug_database')
-                .update({ 
-                    name, 
-                    image_url: imageUrl,
-                    updated_at: new Date().toISOString()
-                })
+                .select('*')
                 .eq('id', numericId)
-                .select()
                 .maybeSingle();
 
-            if (drugError) {
-                console.error('[MEDICINE_UPDATE] Supabase error in drug_database:', drugError);
-            }
+            console.log(`[MEDICINE_UPDATE] Drug check result:`, { exists: !!existingDrug, error: checkError });
 
-            if (drugData) {
-                console.log('[MEDICINE_UPDATE] ✅ Catalog update successful:', drugData.id);
+            if (existingDrug) {
+                // Actualizar el medicamento en drug_database
+                const updateData = {};
+                if (name) updateData.name = name;
+                if (imageUrl !== undefined) updateData.image_url = imageUrl;
+                
+                const { data: drugData, error: drugError } = await supabase
+                    .from('drug_database')
+                    .update(updateData)
+                    .eq('id', numericId)
+                    .select()
+                    .single();
+
+                if (drugError) {
+                    console.error('[MEDICINE_UPDATE] Error updating drug_database:', drugError);
+                    return res.status(500).json({ 
+                        message: 'Error al actualizar medicamento en catálogo',
+                        details: drugError.message 
+                    });
+                }
+
+                console.log('[MEDICINE_UPDATE] ✅ Catalog update successful:', drugData);
                 return res.json(drugData);
             }
             console.log('[MEDICINE_UPDATE] ℹ️ Not found in drug_database, checking medicines table...');
@@ -188,14 +203,21 @@ const updateMedicine = async (req, res) => {
             .from('medicines')
             .select('patient_id')
             .eq('id', numericId)
-            .single();
+            .maybeSingle();
+
+        console.log(`[MEDICINE_UPDATE] Medicine check result:`, { exists: !!medicineData, error: medicineError });
 
         if (medicineError || !medicineData) {
             console.warn(`[MEDICINE_UPDATE] ❌ Medicine ${numericId} not found in any table.`);
             return res.status(404).json({ 
                 message: 'Medicamento no encontrado',
                 details: `ID ${id} no existe en catálogo ni en registros de pacientes`,
-                debug: { id, numericId, isAdmin }
+                debug: { 
+                    id, 
+                    numericId, 
+                    isAdmin,
+                    checkedTables: isAdmin ? ['drug_database', 'medicines'] : ['medicines']
+                }
             });
         }
 
