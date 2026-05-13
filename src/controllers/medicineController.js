@@ -153,11 +153,14 @@ const updateMedicine = async (req, res) => {
         const userRole = req.user.role;
         const isAdmin = userRole && ['admin', 'Admin', 'ADMIN'].includes(userRole);
 
-        console.log('Update request:', { id, name, userRole, isAdmin });
+        console.log(`[MEDICINE_UPDATE] Request for ID: ${id}`, { name, userRole, isAdmin });
+
+        // Convertir ID a número si es posible para asegurar coincidencia en DB
+        const numericId = !isNaN(id) ? parseInt(id) : id;
 
         // Si es admin, intentamos actualizar en el catálogo global (drug_database)
         if (isAdmin) {
-            console.log('Admin detected, attempting catalog update for ID:', id);
+            console.log(`[MEDICINE_UPDATE] Admin flow - Updating drug_database for ID: ${numericId}`);
             const { data: drugData, error: drugError } = await supabase
                 .from('drug_database')
                 .update({ 
@@ -165,32 +168,37 @@ const updateMedicine = async (req, res) => {
                     image_url: imageUrl,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', id)
+                .eq('id', numericId)
                 .select()
                 .maybeSingle();
 
             if (drugError) {
-                console.error('Error updating drug_database:', drugError);
+                console.error('[MEDICINE_UPDATE] Supabase error in drug_database:', drugError);
             }
 
             if (drugData) {
-                console.log('Catalog update successful');
+                console.log('[MEDICINE_UPDATE] ✅ Catalog update successful:', drugData.id);
                 return res.json(drugData);
             }
-            console.log('Medicine not found in drug_database, falling back to medicines table');
+            console.log('[MEDICINE_UPDATE] ℹ️ Not found in drug_database, checking medicines table...');
         }
 
         // Primero obtener el medicamento para saber el patient_id
         const { data: medicineData, error: medicineError } = await supabase
             .from('medicines')
             .select('patient_id')
-            .eq('id', id)
+            .eq('id', numericId)
             .single();
 
         if (medicineError || !medicineData) {
-            console.warn('Medicine not found in any table for ID:', id);
-            return res.status(404).json({ message: 'Medicamento no encontrado' });
+            console.warn(`[MEDICINE_UPDATE] ❌ Medicine ${numericId} not found in any table.`);
+            return res.status(404).json({ 
+                message: 'Medicamento no encontrado',
+                details: `ID ${id} no existe en catálogo ni en registros de pacientes`,
+                debug: { id, numericId, isAdmin }
+            });
         }
+
 
 
 
