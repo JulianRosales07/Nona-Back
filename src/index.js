@@ -13,6 +13,7 @@ const assistantRoutes = require('./routes/assistant');
 const placesRoutes = require('./routes/places');
 const transcribeRoutes = require('./routes/transcribe');
 const ttsRoutes = require('./routes/tts');
+const ttsGoogleRoutes = require('./routes/tts-google');
 const { startNotificationScheduler } = require('./services/scheduler');
 
 const app = express();
@@ -40,6 +41,7 @@ app.use('/api/assistant', assistantRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/transcribe', transcribeRoutes);
 app.use('/api/tts', ttsRoutes);
+app.use('/api/tts-google', ttsGoogleRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
