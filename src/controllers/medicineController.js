@@ -153,8 +153,11 @@ const updateMedicine = async (req, res) => {
         const userRole = req.user.role;
         const isAdmin = userRole && ['admin', 'Admin', 'ADMIN'].includes(userRole);
 
+        console.log('Update request:', { id, name, userRole, isAdmin });
+
         // Si es admin, intentamos actualizar en el catálogo global (drug_database)
         if (isAdmin) {
+            console.log('Admin detected, attempting catalog update for ID:', id);
             const { data: drugData, error: drugError } = await supabase
                 .from('drug_database')
                 .update({ 
@@ -166,10 +169,15 @@ const updateMedicine = async (req, res) => {
                 .select()
                 .maybeSingle();
 
-            if (!drugError && drugData) {
+            if (drugError) {
+                console.error('Error updating drug_database:', drugError);
+            }
+
+            if (drugData) {
+                console.log('Catalog update successful');
                 return res.json(drugData);
             }
-            // Si no se encontró en drug_database, continuamos con la tabla medicines
+            console.log('Medicine not found in drug_database, falling back to medicines table');
         }
 
         // Primero obtener el medicamento para saber el patient_id
@@ -180,8 +188,10 @@ const updateMedicine = async (req, res) => {
             .single();
 
         if (medicineError || !medicineData) {
+            console.warn('Medicine not found in any table for ID:', id);
             return res.status(404).json({ message: 'Medicamento no encontrado' });
         }
+
 
 
         // Verificar permisos usando la nueva lógica
