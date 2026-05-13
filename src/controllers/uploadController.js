@@ -142,22 +142,31 @@ const deleteProfileImage = async (req, res) => {
 // Subir imagen de medicamento
 const uploadMedicineImage = async (req, res) => {
   try {
+    console.log('Upload request received:', { 
+      hasFile: !!req.file, 
+      hasBody: !!req.body,
+      contentType: req.headers['content-type']
+    });
+
     let buffer;
     let fileExt;
-    let patientId = req.body.patientId || 'global';
+    let patientId = (req.body && req.body.patientId) || 'global';
 
     // Soporte para multipart/form-data (vía multer)
     if (req.file) {
+      console.log('Processing multipart file:', req.file.originalname);
       buffer = req.file.buffer;
       fileExt = req.file.originalname.split('.').pop();
     } 
     // Soporte para base64 (vía JSON)
-    else if (req.body.imageBase64) {
+    else if (req.body && req.body.imageBase64) {
+      console.log('Processing base64 image');
       const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
       buffer = Buffer.from(base64Data, 'base64');
       fileExt = req.body.fileName ? req.body.fileName.split('.').pop() : 'jpg';
     } 
     else {
+      console.warn('Upload failed: No image provided');
       return res.status(400).json({ 
         error: 'Se requiere un archivo (image) o imageBase64' 
       });
@@ -166,6 +175,8 @@ const uploadMedicineImage = async (req, res) => {
     // Generar nombre único para el archivo
     const uniqueFileName = `medicine_${patientId}_${Date.now()}.${fileExt}`;
     const filePath = `medicine-images/${uniqueFileName}`;
+
+    console.log('Uploading to storage path:', filePath);
 
     // Subir imagen a Supabase Storage
     const { error: uploadError } = await supabase
@@ -178,9 +189,9 @@ const uploadMedicineImage = async (req, res) => {
       });
 
     if (uploadError) {
-      console.error('Error uploading medicine image:', uploadError);
+      console.error('Supabase storage error:', uploadError);
       return res.status(500).json({ 
-        error: 'Error al subir la imagen', 
+        error: 'Error al subir la imagen a Supabase', 
         details: uploadError.message 
       });
     }
@@ -191,16 +202,22 @@ const uploadMedicineImage = async (req, res) => {
       .from('avatars')
       .getPublicUrl(filePath);
 
+    console.log('Upload successful:', urlData.publicUrl);
+
     res.json({ 
       message: 'Imagen subida exitosamente',
       url: urlData.publicUrl
     });
 
   } catch (error) {
-    console.error('Upload medicine image error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Critical upload medicine image error:', error);
+    res.status(500).json({ 
+      error: 'Error interno del servidor al procesar la imagen',
+      message: error.message 
+    });
   }
 };
+
 
 
 module.exports = { uploadProfileImage, deleteProfileImage, uploadMedicineImage };
