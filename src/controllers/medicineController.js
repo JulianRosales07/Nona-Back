@@ -1,6 +1,8 @@
 const supabase = require('../config/database');
 const { canManagePatientData } = require('../middleware/checkRelationships');
 
+const XLSX = require('xlsx');
+
 // Obtener todos los medicamentos de un paciente
 const getPatientMedicines = async (req, res) => {
     try {
@@ -32,6 +34,28 @@ const createMedicine = async (req, res) => {
         const userId = req.user.userId;
         const userRole = req.user.role;
         const isAdmin = ['admin', 'Admin'].includes(userRole);
+
+        console.log('Creating medicine:', { userId, userRole, patientId, name });
+
+        // Si es admin y no hay patientId, estamos creando en el catálogo global
+        if (isAdmin && !patientId) {
+            const { data, error } = await supabase
+                .from('drug_database')
+                .insert([{
+                    name: name,
+                    image_url: imageUrl,
+                    description: 'Agregado por administrador'
+                }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error creating global medicine:', error);
+                return res.status(500).json({ message: 'Error al crear medicamento en catálogo', details: error.message });
+            }
+            return res.status(201).json(data);
+        }
+
 
         console.log('Creating medicine:', { userId, userRole, patientId, name });
 
@@ -253,28 +277,88 @@ const deleteMedicine = async (req, res) => {
     }
 };
 
-// Obtener TODOS los medicamentos de todo el sistema (Para Admin)
+// Obtener TODOS los medicamentos del catálogo global (Para Admin)
 const getAllMedicines = async (req, res) => {
     try {
+        // Obtenemos del catálogo global (drug_database) para que no dependa de relaciones
         const { data, error } = await supabase
-            .from('medicines')
-            .select(`
-                *,
-                users!medicines_patient_id_fkey(name, email)
-            `)
-            .order('created_at', { ascending: false });
+            .from('drug_database')
+            .select('*')
+            .order('name', { ascending: true });
 
         if (error) {
-            console.error('Error fetching all medicines:', error);
-            return res.status(500).json({ message: 'Error al obtener todos los medicamentos' });
+            console.error('Error fetching all medicines from catalog:', error);
+            return res.status(500).json({ message: 'Error al obtener el catálogo de medicamentos' });
         }
 
         res.json(data || []);
     } catch (error) {
         console.error('Error fetching all medicines:', error);
-        res.status(500).json({ message: 'Error al obtener todos los medicamentos' });
+        res.status(500).json({ message: 'Error al obtener los medicamentos' });
     }
 };
+
+// Descargar plantilla de Excel
+const downloadMedicineTemplate = async (req, res) => {
+    try {
+        const workbook = XLSX.utils.book_new();
+        const data = [
+            ['nombre', 'imagen_url'],
+            ['Acetaminofén', 'https://ejemplo.com/acetaminofen.jpg'],
+            ['Ibuprofeno', 'https://ejemplo.com/ibuprofeno.jpg']
+        ];
+        const worksheet = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Medicamentos');
+        
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=plantilla_medicamentos.xlsx');
+        res.send(buffer);
+    } catch (error) {
+        console.error('Error generating template:', error);
+        res.status(500).json({ message: 'Error al generar la plantilla' });
+    }
+};
+
+// Importar medicamentos desde Excel
+const importMedicinesExcel = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No se subió ningún archivo' });
+        }
+
+        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+
+        if (data.length === 0) {
+            return res.status(400).json({ message: 'El archivo está vacío' });
+        }
+
+        const medicinesToInsert = data.map(row => ({
+            name: row.nombre || row.Nombre,
+            image_url: row.imagen_url || row.Imagen || null,
+            description: 'Importado vía Excel'
+        })).filter(m => m.name);
+
+        const { data: inserted, error } = await supabase
+            .from('drug_database')
+            .upsert(medicinesToInsert, { onConflict: 'name' });
+
+        if (error) {
+            console.error('Error importing medicines:', error);
+            return res.status(500).json({ message: 'Error al importar medicamentos', details: error.message });
+        }
+
+        res.json({ message: `Se importaron ${medicinesToInsert.length} medicamentos correctamente` });
+    } catch (error) {
+        console.error('Error importing medicines:', error);
+        res.status(500).json({ message: 'Error al importar medicamentos' });
+    }
+};
+
 
 // Buscar medicamentos en la base de datos de medicamentos (drug_database)
 const searchDrugDatabase = async (req, res) => {
@@ -347,5 +431,8 @@ module.exports = {
     createMedicine,
     updateMedicine,
     deleteMedicine,
-    searchDrugDatabase
+    searchDrugDatabase,
+    downloadMedicineTemplate,
+    importMedicinesExcel
 };
+

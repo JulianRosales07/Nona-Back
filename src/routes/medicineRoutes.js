@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const medicineController = require('../controllers/medicineController');
 const { authenticateToken } = require('../middleware/auth');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+
 
 // Todas las rutas requieren autenticación
 router.use(authenticateToken);
@@ -101,24 +104,13 @@ router.post('/', medicineController.createMedicine);
 router.put('/:id', medicineController.updateMedicine);
 
 // Eliminar medicamento
-/**
- * @swagger
- * /api/medicines/{id}:
- *   delete:
- *     summary: Eliminar medicamento
- *     tags: [Medicines]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Medicamento eliminado
- */
 router.delete('/:id', medicineController.deleteMedicine);
 
+// Descargar plantilla
+router.get('/template', medicineController.downloadMedicineTemplate);
+
+// Importar desde Excel
+router.post('/import', upload.single('file'), medicineController.importMedicinesExcel);
+
 module.exports = router;
+
