@@ -46,6 +46,9 @@ router.get('/search', medicineController.searchDrugDatabase);
  */
 router.get('/all', medicineController.getAllMedicines);
 
+// Descargar plantilla (MUST be before /:id to avoid matching "template" as an ID)
+router.get('/template', medicineController.downloadMedicineTemplate);
+
 // Obtener medicamentos de un paciente
 /**
  * @swagger
@@ -107,9 +110,6 @@ router.put('/:id', medicineController.updateMedicine);
 
 // Eliminar medicamento
 router.delete('/:id', medicineController.deleteMedicine);
-
-// Descargar plantilla
-router.get('/template', medicineController.downloadMedicineTemplate);
 
 // Importar desde Excel
 router.post('/import', upload.single('file'), medicineController.importMedicinesExcel);
