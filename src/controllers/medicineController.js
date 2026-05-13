@@ -360,21 +360,37 @@ const deleteMedicine = async (req, res) => {
 // Obtener TODOS los medicamentos del catálogo global (Para Admin)
 const getAllMedicines = async (req, res) => {
     try {
-        // Obtenemos del catálogo global (drug_database) para que no dependa de relaciones
-        const { data, error } = await supabase
-            .from('drug_database')
-            .select('*')
-            .order('name', { ascending: true });
+        const userRole = req.user.role;
+        const isAdmin = userRole && ['admin', 'Admin', 'ADMIN'].includes(userRole);
 
-        if (error) {
-            console.error('Error fetching all medicines from catalog:', error);
-            return res.status(500).json({ message: 'Error al obtener el catálogo de medicamentos' });
+        // Solo admins pueden ver todos los medicamentos
+        if (!isAdmin) {
+            return res.status(403).json({ message: 'No tienes permisos para ver todos los medicamentos' });
         }
 
+        // Obtenemos de la tabla medicines con JOIN a users para obtener info del paciente
+        const { data, error } = await supabase
+            .from('medicines')
+            .select(`
+                *,
+                users:patient_id (
+                    id,
+                    name,
+                    email
+                )
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching all medicines with patient info:', error);
+            return res.status(500).json({ message: 'Error al obtener medicamentos', details: error.message });
+        }
+
+        console.log('[MEDICINES_ALL] Fetched', data?.length || 0, 'medicines with patient info');
         res.json(data || []);
     } catch (error) {
         console.error('Error fetching all medicines:', error);
-        res.status(500).json({ message: 'Error al obtener los medicamentos' });
+        res.status(500).json({ message: 'Error al obtener los medicamentos', details: error.message });
     }
 };
 
