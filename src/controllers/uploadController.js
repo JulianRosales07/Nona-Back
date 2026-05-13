@@ -142,20 +142,28 @@ const deleteProfileImage = async (req, res) => {
 // Subir imagen de medicamento
 const uploadMedicineImage = async (req, res) => {
   try {
-    const { patientId, imageBase64, fileName } = req.body;
+    let buffer;
+    let fileExt;
+    let patientId = req.body.patientId || 'global';
 
-    if (!patientId || !imageBase64) {
+    // Soporte para multipart/form-data (vía multer)
+    if (req.file) {
+      buffer = req.file.buffer;
+      fileExt = req.file.originalname.split('.').pop();
+    } 
+    // Soporte para base64 (vía JSON)
+    else if (req.body.imageBase64) {
+      const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      buffer = Buffer.from(base64Data, 'base64');
+      fileExt = req.body.fileName ? req.body.fileName.split('.').pop() : 'jpg';
+    } 
+    else {
       return res.status(400).json({ 
-        error: 'patientId e imageBase64 son requeridos' 
+        error: 'Se requiere un archivo (image) o imageBase64' 
       });
     }
 
-    // Convertir base64 a buffer
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
-
     // Generar nombre único para el archivo
-    const fileExt = fileName ? fileName.split('.').pop() : 'jpg';
     const uniqueFileName = `medicine_${patientId}_${Date.now()}.${fileExt}`;
     const filePath = `medicine-images/${uniqueFileName}`;
 
@@ -165,6 +173,7 @@ const uploadMedicineImage = async (req, res) => {
       .from('avatars')
       .upload(filePath, buffer, {
         contentType: `image/${fileExt}`,
+        cacheControl: '3600',
         upsert: true
       });
 
@@ -182,11 +191,9 @@ const uploadMedicineImage = async (req, res) => {
       .from('avatars')
       .getPublicUrl(filePath);
 
-    const publicUrl = urlData.publicUrl;
-
     res.json({ 
       message: 'Imagen subida exitosamente',
-      url: publicUrl
+      url: urlData.publicUrl
     });
 
   } catch (error) {
@@ -194,5 +201,6 @@ const uploadMedicineImage = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 module.exports = { uploadProfileImage, deleteProfileImage, uploadMedicineImage };

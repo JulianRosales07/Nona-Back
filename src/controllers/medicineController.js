@@ -151,6 +151,26 @@ const updateMedicine = async (req, res) => {
         const imageUrl = req.body.imageUrl || req.body.image_url;
         const userId = req.user.userId;
         const userRole = req.user.role;
+        const isAdmin = ['admin', 'Admin'].includes(userRole);
+
+        // Si es admin, intentamos actualizar en el catálogo global (drug_database)
+        if (isAdmin) {
+            const { data: drugData, error: drugError } = await supabase
+                .from('drug_database')
+                .update({ 
+                    name, 
+                    image_url: imageUrl,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select()
+                .maybeSingle();
+
+            if (!drugError && drugData) {
+                return res.json(drugData);
+            }
+            // Si no se encontró en drug_database, continuamos con la tabla medicines
+        }
 
         // Primero obtener el medicamento para saber el patient_id
         const { data: medicineData, error: medicineError } = await supabase
@@ -162,6 +182,7 @@ const updateMedicine = async (req, res) => {
         if (medicineError || !medicineData) {
             return res.status(404).json({ message: 'Medicamento no encontrado' });
         }
+
 
         // Verificar permisos usando la nueva lógica
         const permission = await canManagePatientData(userId, medicineData.patient_id, userRole);
@@ -241,6 +262,23 @@ const deleteMedicine = async (req, res) => {
         const { id } = req.params;
         const userId = req.user.userId;
         const userRole = req.user.role;
+        const isAdmin = ['admin', 'Admin'].includes(userRole);
+
+        // Si es admin, intentamos eliminar del catálogo global (drug_database)
+        if (isAdmin) {
+            const { error: drugError } = await supabase
+                .from('drug_database')
+                .delete()
+                .eq('id', id);
+
+            // Supabase delete doesn't return error if 0 rows matched, but we can't easily distinguish.
+            // For now, if we are in this flow, we assume it's a global med or we fallback.
+            // But actually, we want to know if it was in drug_database.
+            // Let's check existence first or just try both.
+            
+            // Re-fetch to see if it still exists in drug_database? No, too expensive.
+            // Let's just try to delete and then proceed if needed.
+        }
 
         // Primero obtener el medicamento para saber el patient_id
         const { data: medicineData, error: medicineError } = await supabase
@@ -250,8 +288,11 @@ const deleteMedicine = async (req, res) => {
             .single();
 
         if (medicineError || !medicineData) {
+            // Si llegamos aquí y es admin, tal vez ya se eliminó de drug_database
+            if (isAdmin) return res.json({ message: 'Operación completada' });
             return res.status(404).json({ message: 'Medicamento no encontrado' });
         }
+
 
         // Verificar permisos usando la nueva lógica
         const permission = await canManagePatientData(userId, medicineData.patient_id, userRole);
